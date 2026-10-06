@@ -83,27 +83,25 @@
             <div class="card p-3 bg-slate-800/50"><div class="text-slate-400 text-xs">出手穩定評價</div><div id="kpiEval" class="text-xs md:text-sm font-bold text-amber-300 mt-1 leading-tight">--</div></div>
         </div>
 
-        <!-- Charts Layout (Speed, Release Point Consistency, Movement, Tunneling/Plate Location) -->
+        <!-- Charts Layout -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="card p-4 md:p-6">
                 <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="trending-up" class="text-sky-400"></i> 球速成長趨勢 (均速 vs 極速)</h2><p class="text-xs text-slate-400 mt-1">觀察不同日期的球速演進</p></div>
                 <div id="speedChart" class="w-full h-[280px]"></div>
             </div>
             
-            <!-- 新增：放球點高度與側向穩定度人形分佈圖 -->
             <div class="card p-4 md:p-6">
-                <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="user-check" class="text-purple-400"></i> 放球點穩定度 (投球人形定位視角)</h2><p class="text-xs text-slate-400 mt-1">橫向側身距離 (Feet) vs 放球高度 (Feet)，點越集中代表出手越固定</p></div>
+                <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="user-check" class="text-purple-400"></i> 放球點穩定度 (投球人形定位視角)</h2><p class="text-xs text-slate-400 mt-1">橫向側身距離 (Feet) vs 放球高度 (Feet)</p></div>
                 <div id="releaseChart" class="w-full h-[280px]"></div>
             </div>
 
             <div class="card p-4 md:p-6">
-                <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="compass" class="text-amber-400"></i> 變化量分析 (垂直 vs 水平變化)</h2><p class="text-xs text-slate-400 mt-1">單位：英吋 (Inches)，觀察球的尾勁與軌跡</p></div>
+                <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="compass" class="text-amber-400"></i> 變化量分析 (垂直 vs 水平變化)</h2><p class="text-xs text-slate-400 mt-1">單位：英吋 (Inches)</p></div>
                 <div id="movementChart" class="w-full h-[280px]"></div>
             </div>
 
-            <!-- 新增：多球種共軌分析圖 (Tunneling Comparison) -->
             <div class="card p-4 md:p-6">
-                <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="crosshair" class="text-emerald-400"></i> 多球種進壘點共軌比較 (Tunneling)</h2><p class="text-xs text-slate-400 mt-1">比較速球與變化球在本壘板的進壘位置，評估共軌欺敵效果</p></div>
+                <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="crosshair" class="text-emerald-400"></i> 多球種進壘點共軌比較 (Tunneling)</h2><p class="text-xs text-slate-400 mt-1">比較速球與變化球在本壘板的進壘位置</p></div>
                 <div id="tunnelChart" class="w-full h-[280px]"></div>
             </div>
         </div>
@@ -140,8 +138,8 @@
                     <div><label class="block text-slate-400 mb-1">體重 (kg)</label><input type="number" step="0.1" id="athleteModalWeight" placeholder="75" class="input-field w-full"></div>
                 </div>
                 <div class="flex gap-2 pt-2">
-                    <button type="button" onclick="closeAthleteModal()" class="w-1/2 py-2.5 bg-slate-700 rounded-lg text-white">取消</button>
-                    <button type="submit" class="w-1/2 py-2.5 bg-sky-600 rounded-lg text-white">儲存資料</button>
+                    <button type="button" onclick="closeAthleteModal()" class="w-1/2 py-2.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-white">取消</button>
+                    <button type="submit" class="w-1/2 py-2.5 bg-sky-600 hover:bg-sky-500 rounded-lg text-white">儲存資料</button>
                 </div>
             </form>
         </div>
@@ -203,6 +201,7 @@
     </script>
 
     <script>
+        // 優先從本機讀取備份資料，確保畫面瞬間有資料
         window.athletes = JSON.parse(localStorage.getItem('rapsodo_athletes_v3')) || {};
         window.records = JSON.parse(localStorage.getItem('rapsodo_records_v3')) || [];
 
@@ -274,7 +273,7 @@
                         count++;
                     });
                     
-                    alert(`成功匯入 ${count} 筆放球點與共軌數據（雲端同步已完成）！`);
+                    alert(`成功匯入 ${count} 筆投球數據（雲端與本機同步完成）！`);
                     saveDataLocally();
                     updateDropdowns();
                     updateDashboard();
@@ -294,6 +293,7 @@
 
         function updateDropdowns() {
             const athSelect = document.getElementById('athleteSelect');
+            if (!athSelect) return;
             const currAth = athSelect.value;
             const names = [...new Set([...Object.keys(window.athletes), ...window.records.map(r => r.name)])];
             athSelect.innerHTML = names.length ? '' : '<option value="">請先匯入資料</option>';
@@ -308,7 +308,9 @@
 
         function onAthleteChange() {
             const ptSelect = document.getElementById('pitchTypeSelect');
-            const selectedAth = document.getElementById('athleteSelect').value;
+            const athSelect = document.getElementById('athleteSelect');
+            if (!ptSelect || !athSelect) return;
+            const selectedAth = athSelect.value;
             if (!selectedAth) { ptSelect.innerHTML = '<option value="">無資料</option>'; return; }
 
             const athRecords = window.records.filter(r => r.name === selectedAth);
@@ -318,59 +320,3 @@
             pTypes.sort((a, b) => ptCounts[b] - ptCounts[a]);
 
             ptSelect.innerHTML = pTypes.length ? '' : '<option value="">無資料</option>';
-            pTypes.forEach(pt => {
-                const opt = document.createElement('option');
-                opt.value = pt; 
-                opt.textContent = `${pt} ${getPitchTypeName(pt)} (共 ${ptCounts[pt]} 球)`;
-                ptSelect.appendChild(opt);
-            });
-            updateDashboard();
-        }
-
-        function getStabilityDiagnosis(sd, count) {
-            if (count < 2) return "球數不足";
-            if (sd <= 1.0) return "極佳 (出手極固定)";
-            if (sd <= 1.8) return "良好 (實戰水準)";
-            return "需調整發力";
-        }
-
-        function getStabilityColor(sd, count) {
-            if (count < 2) return "text-slate-400";
-            if (sd <= 1.0) return "text-emerald-400";
-            if (sd <= 1.8) return "text-yellow-400";
-            return "text-red-400";
-        }
-
-        function updateDashboard() {
-            const ath = document.getElementById('athleteSelect').value;
-            const pt = document.getElementById('pitchTypeSelect').value;
-            if (!ath || !pt) return;
-            
-            const profileDiv = document.getElementById('athleteProfile');
-            const p = window.athletes[ath] || {};
-            profileDiv.classList.remove('hidden');
-            profileDiv.innerHTML = `
-                <div class="font-bold text-sky-300 text-base border-r border-slate-600 pr-3">${ath}</div>
-                <div>性別: <span class="text-white">${p.gender||'--'}</span></div>
-                <div>生日: <span class="text-white">${p.dob||'--'}</span></div>
-                <div>身高: <span class="text-white">${p.height?p.height+' cm':'--'}</span></div>
-                <div>體重: <span class="text-white">${p.weight?p.weight+' kg':'--'}</span></div>
-            `;
-            
-            const athAllRecords = window.records.filter(r => r.name === ath);
-            const filtered = athAllRecords.filter(r => r.pitchType === pt);
-            const grouped = {};
-            filtered.forEach(r => {
-                if (!grouped[r.date]) grouped[r.date] = [];
-                grouped[r.date].push(r);
-            });
-            
-            const dates = Object.keys(grouped).sort();
-            const dailyStats = dates.map(date => {
-                const items = grouped[date];
-                const count = items.length;
-                const speeds = items.map(i => i.speed);
-                const max = Math.max(...speeds);
-                const avg = speeds.reduce((a,b)=>a+b,0) / count;
-                const avgSpin = items.reduce((a,b)=>a+b.spinRate,0) / count;
-                const avgVert = items.reduce
