@@ -29,7 +29,7 @@
                 <h1 class="text-2xl md:text-3xl font-bold text-sky-400 flex items-center gap-2">
                     <i data-lucide="target"></i> Rapsodo Pitching Dashboard
                 </h1>
-                <p class="text-slate-400 text-sm mt-1">放球點跨日期彈性基準比較與速差共軌 (Tunneling) 智慧分析系統</p>
+                <p class="text-slate-400 text-sm mt-1">跨日期放球點人形圖比較與速差共軌 (Tunneling) 智慧分析系統</p>
             </div>
             
             <div class="flex flex-wrap items-center gap-2">
@@ -91,15 +91,24 @@
                 <div id="speedChart" class="w-full h-[320px]"></div>
             </div>
             
-            <!-- 2. 各球種出手位置與高度一致性 -->
+            <!-- 2. ★ 新增：跨日期單一球種放球點人形圖（支援選擇球種、黑色標記基準） ★ -->
             <div class="card p-4 md:p-6 bg-slate-900/90 border border-sky-500/30">
-                <div class="mb-2">
-                    <h2 class="text-lg font-semibold flex items-center gap-2 text-sky-300">
-                        <i data-lucide="user" class="text-sky-400"></i> 各球種出手位置與高度一致性 (投手背面視角)
-                    </h2>
-                    <p class="text-xs text-slate-400 mt-1">觀察不同球種是否從同一個手臂角度與出手點釋放</p>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
+                    <div>
+                        <h2 class="text-lg font-semibold flex items-center gap-2 text-sky-300">
+                            <i data-lucide="user-check" class="text-sky-400"></i> 選手跨日期出手點人形圖對比
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">黑色圓點為指定基準，其他日期為對比日（教練指導專用）</p>
+                    </div>
+                    <!-- 圖表專屬球種選擇器 -->
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-xs text-slate-300 font-medium">檢視球種:</span>
+                        <select id="releasePitchSelect" onchange="updateDashboard()" class="bg-slate-800 text-sky-300 border border-slate-600 rounded px-2 py-1 text-xs font-bold">
+                            <option value="">全部球種</option>
+                        </select>
+                    </div>
                 </div>
-                <div id="releaseChart" class="w-full h-[320px]"></div>
+                <div id="releaseChart" class="w-full h-[300px]"></div>
             </div>
 
             <!-- 3. 本壘板進壘點共軌區 (Tunneling) -->
@@ -115,7 +124,7 @@
             </div>
         </div>
 
-        <!-- 跨日期球種放球點差異比較表（含基準自由指定與 ±5% 容許區間） -->
+        <!-- 跨日期球種放球點差異比較表 -->
         <div class="card p-5 border border-purple-500/30">
             <h3 class="text-md font-semibold text-purple-400 mb-2 flex items-center gap-2">
                 <i data-lucide="git-compare"></i> 跨日期球種放球點差異比較表 (教練可自由指定最佳基準測試)
@@ -147,7 +156,7 @@
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm text-slate-300">
                     <thead class="bg-slate-800 text-slate-400 uppercase text-xs">
-                        <tr><th class="p-2">日期</th><th class="p-2">球數</th><th class="p-2">極速</th><th class="p-2">均速</th><th class="p-2">球速SD</th><th class="p-2">放球點高度</th><th class="p-2">總轉速</th><th class="p-2">垂直變化</th><th class="p-2">水平變化</th><th class="p-2">教練解讀</th></tr>
+                        <tr><th class="p-2">日期</th><th class="p-2">用球數</th><th class="p-2">極速</th><th class="p-2">均速</th><th class="p-2">球速SD</th><th class="p-2">放球點高度</th><th class="p-2">總轉速</th><th class="p-2">垂直變化</th><th class="p-2">水平變化</th><th class="p-2">教練解讀</th></tr>
                     </thead>
                     <tbody id="dataTableBody" class="divide-y divide-slate-700"></tbody>
                 </table>
@@ -236,7 +245,6 @@
     </script>
 
     <script>
-        // 全域變數：儲存各選手各球種教練指定的基準日期 { "選手名": { "球種": "YYYY-MM-DD" } }
         window.baselineConfig = JSON.parse(localStorage.getItem('rapsodo_baselines')) || {};
 
         function migrateOldData() {
@@ -378,10 +386,15 @@
 
         function onAthleteChange() {
             const ptSelect = document.getElementById('pitchTypeSelect');
+            const relPtSelect = document.getElementById('releasePitchSelect');
             const athSelect = document.getElementById('athleteSelect');
             if (!ptSelect || !athSelect) return;
             const selectedAth = athSelect.value;
-            if (!selectedAth) { ptSelect.innerHTML = '<option value="">無資料</option>'; return; }
+            if (!selectedAth) { 
+                ptSelect.innerHTML = '<option value="">無資料</option>'; 
+                if(relPtSelect) relPtSelect.innerHTML = '<option value="">全部球種</option>';
+                return; 
+            }
 
             const athRecords = window.records.filter(r => r.name === selectedAth);
             const pTypes = [...new Set(athRecords.map(r => r.pitchType))];
@@ -396,6 +409,19 @@
                 opt.textContent = `${pt} ${getPitchTypeName(pt)} (共 ${ptCounts[pt]} 球)`;
                 ptSelect.appendChild(opt);
             });
+
+            if (relPtSelect) {
+                const currentRelVal = relPtSelect.value;
+                relPtSelect.innerHTML = '<option value="">全部球種 (綜合)</option>';
+                pTypes.forEach(pt => {
+                    const opt = document.createElement('option');
+                    opt.value = pt;
+                    opt.textContent = `${pt} ${getPitchTypeName(pt)}`;
+                    relPtSelect.appendChild(opt);
+                });
+                if (pTypes.includes(currentRelVal)) relPtSelect.value = currentRelVal;
+            }
+
             updateDashboard();
         }
 
@@ -486,7 +512,7 @@
                     tbody.innerHTML += `
                         <tr class="hover:bg-slate-800/30">
                             <td class="p-2">${stat.date}</td>
-                            <td class="p-2 text-sky-300 font-semibold">${stat.count}</td>
+                            <td class="p-2 text-sky-300 font-semibold">${stat.count} 球</td>
                             <td class="p-2 text-emerald-400 font-semibold">${stat.max.toFixed(1)}</td>
                             <td class="p-2 text-amber-400 font-semibold">${stat.avg.toFixed(1)}</td>
                             <td class="p-2 text-purple-400 font-bold">${stat.count > 1 ? stat.sd.toFixed(2) : '--'}</td>
@@ -500,7 +526,7 @@
                 });
             }
 
-            // ★ 跨日期球種放球點差異比較表（支援教練手動指定基準與 ±5% 容許區間判定） ★
+            // 跨日期球種放球點差異比較表
             const compareTbody = document.getElementById('compareTableBody');
             if (compareTbody) {
                 compareTbody.innerHTML = '';
@@ -520,13 +546,11 @@
                     const sortedDates = Object.keys(dateGroup).sort();
                     if (sortedDates.length === 0) return;
 
-                    // 若尚未指定該球種基準，預設為第一個日期
                     if (!window.baselineConfig[ath][pType] || !sortedDates.includes(window.baselineConfig[ath][pType])) {
                         window.baselineConfig[ath][pType] = sortedDates[0];
                     }
                     const baselineDate = window.baselineConfig[ath][pType];
 
-                    // 計算基準日期的平均高度與側向
                     const baseRecs = dateGroup[baselineDate] || [];
                     const baseHeight = baseRecs.reduce((a,b)=>a+b.relHeight, 0) / (baseRecs.length || 1);
                     const baseSide = baseRecs.reduce((a,b)=>a+b.relSide, 0) / (baseRecs.length || 1);
@@ -564,7 +588,6 @@
                             }
                         }
 
-                        // 下拉選單供教練隨時切換基準
                         let selectHtml = `<select onchange="setBaseline('${ath}', '${pType}', this.value)" class="bg-slate-800 text-sky-300 border border-slate-600 rounded px-2 py-1 text-xs font-semibold">`;
                         sortedDates.forEach(sd => {
                             selectHtml += `<option value="${sd}" ${sd === baselineDate ? 'selected' : ''}>${sd}</option>`;
@@ -615,27 +638,63 @@
                 margin: { t: 10, r: 20, l: 40, b: 40 }, xaxis: { gridcolor: '#334155' }, yaxis: { gridcolor: '#334155' }
             };
             
+            // 1. 速差圖
             const traceMax = { x: dates, y: stats.map(s => s.max), name: '極速', type: 'scatter', mode: 'lines+markers', line: { color: '#34d399', width: 2, dash: 'dot' } };
             const traceAvg = { x: dates, y: stats.map(s => s.avg), name: '均速', type: 'scatter', mode: 'lines+markers', line: { color: '#38bdf8', width: 3 } };
             Plotly.newPlot('speedChart', [traceMax, traceAvg], { ...commonLayout, yaxis: { title: 'MPH', gridcolor: '#334155' }, legend: { orientation: 'h', y: 1.2, x: 0 } }, { responsive: true, displayModeBar: false });
             
-            const pitchTypes = [...new Set(allAthRecords.map(r => r.pitchType))];
-            const releaseTraces = pitchTypes.map(pt => {
-                const ptData = allAthRecords.filter(r => r.pitchType === pt);
-                const avgSide = ptData.reduce((a,b)=>a+b.relSide, 0) / ptData.length;
-                const avgHeight = ptData.reduce((a,b)=>a+b.relHeight, 0) / ptData.length;
-                const pColor = getPitchColor(pt);
+            // 2. ★ 跨日期人形圖：支援選擇特定球種、基準日用黑色標記、其他日期用不同顏色 ★
+            const athSelect = document.getElementById('athleteSelect');
+            const currentAth = athSelect ? athSelect.value : '';
+            const relPitchSelect = document.getElementById('releasePitchSelect');
+            const selectedRelPt = relPitchSelect ? relPitchSelect.value : '';
 
-                return {
-                    x: [avgSide],
-                    y: [avgHeight],
-                    name: `${pt} ${getPitchTypeName(pt)}`,
-                    mode: 'markers+text',
-                    text: [` ${pt}`],
-                    textposition: 'right font-bold',
-                    marker: { size: 16, color: pColor, line: { color: '#ffffff', width: 2 } },
-                    hovertemplate: `球種: ${pt}<br>放球高度: %{y:.2f} 呎<br>側向距離: %{x:.2f} 呎<extra></extra>`
-                };
+            const athleteBaselines = (window.baselineConfig && window.baselineConfig[currentAth]) || {};
+            const activePitchTypes = selectedRelPt ? [selectedRelPt] : [...new Set(allAthRecords.map(r => r.pitchType))];
+            const dateColors = ['#38bdf8', '#34d399', '#f59e0b', '#ec4899', '#a855f7', '#06b6d4'];
+
+            let releaseTraces = [];
+            let dateIdx = 0;
+
+            // 取得所有出現過的日期並排序
+            const allDates = [...new Set(allAthRecords.map(r => r.date))].sort();
+
+            allDates.forEach(d => {
+                const dateRecs = allAthRecords.filter(r => r.date === d && activePitchTypes.includes(r.pitchType));
+                if (dateRecs.length === 0) return;
+
+                // 檢查這一天是否為任何球種的基準日
+                const isBaselineDay = Object.entries(athleteBaselines).some(([pt, bDate]) => bDate === d && activePitchTypes.includes(pt));
+
+                let markerColor = dateColors[dateIdx % dateColors.length];
+                let markerSize = 12;
+                let markerSymbol = 'circle';
+                let markerBorder = { color: '#ffffff', width: 1 };
+                let legendName = `測試日: ${d}`;
+
+                if (isBaselineDay) {
+                    markerColor = '#000000'; // 基準用黑色標記
+                    markerSize = 18;
+                    markerSymbol = 'circle';
+                    markerBorder = { color: '#38bdf8', width: 3 }; // 亮藍色外框讓黑色更顯眼
+                    legendName = `🎯 基準測試日: ${d}`;
+                }
+
+                const relSides = dateRecs.map(i => i.relSide);
+                const relHeights = dateRecs.map(i => i.relHeight);
+                const hoverTexts = dateRecs.map(i => `日期: ${i.date}<br>球種: ${i.pitchType} (${getPitchTypeName(i.pitchType)})<br>放球高度: ${i.relHeight.toFixed(2)} 呎<br>側向距離: ${i.relSide.toFixed(2)} 呎<br>球速: ${i.speed} mph`);
+
+                releaseTraces.push({
+                    x: relSides,
+                    y: relHeights,
+                    name: legendName,
+                    mode: 'markers',
+                    text: hoverTexts,
+                    marker: { size: markerSize, color: markerColor, symbol: markerSymbol, line: markerBorder },
+                    hovertemplate: '%{text}<extra></extra>'
+                });
+
+                dateIdx++;
             });
 
             const pitcherBodyShapes = [
@@ -648,11 +707,13 @@
             Plotly.newPlot('releaseChart', releaseTraces, { 
                 ...commonLayout,
                 shapes: pitcherBodyShapes,
-                xaxis: { title: '放球點側向距離 Rel Side (呎)', range: [-1.5, 2.5], zeroline: false }, 
-                yaxis: { title: '放球點高度 Rel Height (呎)', range: [0, 7.0], zeroline: false },
-                legend: { orientation: 'h', y: -0.2, x: 0 }
+                xaxis: { title: '放球點側向距離 Rel Side (呎)', range: [-0.5, 2.5], zeroline: false }, 
+                yaxis: { title: '放球點高度 Rel Height (呎)', range: [3.5, 7.0], zeroline: false },
+                legend: { orientation: 'h', y: -0.3, x: 0 }
             }, { responsive: true, displayModeBar: false });
             
+            // 3. 本壘板進壘點共軌區 (Tunneling)
+            const pitchTypes = [...new Set(allAthRecords.map(r => r.pitchType))];
             const tunnelTraces = pitchTypes.map(pt => {
                 const ptData = allAthRecords.filter(r => r.pitchType === pt);
                 return {
@@ -673,6 +734,7 @@
                 legend: { orientation: 'h', y: 1.2, x: 0 }
             }, { responsive: true, displayModeBar: false });
 
+            // 4. 尾勁變化量分析 (Movement)
             const traceMove = { x: stats.map(s => s.avgHorz), y: stats.map(s => s.avgVert), text: dates, mode: 'text+markers+lines', marker: { size: 10, color: '#f59e0b' } };
             Plotly.newPlot('movementChart', [traceMove], { ...commonLayout, xaxis: { title: '水平變化 Horz Break (Inches)' }, yaxis: { title: '垂直變化 Induced Vert Break (Inches)' } }, { responsive: true, displayModeBar: false });
         }
