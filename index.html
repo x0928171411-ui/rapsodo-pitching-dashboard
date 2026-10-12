@@ -58,7 +58,7 @@
                     <i data-lucide="user" class="text-sky-400 w-4 h-4"></i>
                     <span class="font-medium text-xs md:text-sm text-slate-300">投手：</span>
                     <select id="athleteSelect" onchange="onAthleteChange()" class="input-field min-w-[140px] font-bold text-sky-300">
-                        <option value="">載入中...</option>
+                        <option value="">請先匯入 CSV 檔案</option>
                     </select>
                 </div>
 
@@ -81,6 +81,7 @@
 
             <div class="flex items-center gap-2 justify-between md:justify-end">
                 <div id="athleteProfileBadge" class="text-xs text-slate-300 flex items-center gap-3 bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-700/60">
+                    <span>請點擊上方匯入資料</span>
                 </div>
                 <button onclick="openAthleteModal()" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-600 rounded-lg text-xs">
                     <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> 編輯資料
@@ -202,7 +203,9 @@
                             <th class="p-2.5">好球率 %</th>
                         </tr>
                     </thead>
-                    <tbody id="arsenalTableBody" class="divide-y divide-slate-800"></tbody>
+                    <tbody id="arsenalTableBody" class="divide-y divide-slate-800">
+                        <tr><td colspan="9" class="p-4 text-center text-slate-500">尚無資料，請點擊上方「匯入 Rapsodo CSV」</td></tr>
+                    </tbody>
                 </table>
             </div>
         </div>
@@ -235,6 +238,7 @@
                         </tr>
                     </thead>
                     <tbody id="pitchLogTableBody" class="divide-y divide-slate-800 font-mono">
+                        <tr><td colspan="10" class="p-4 text-center text-slate-500">尚無資料，請匯入 Rapsodo CSV 檔案</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -470,7 +474,7 @@
             const prevAth = athSelect.value;
             const names = [...new Set([...Object.keys(window.athletes), ...window.records.map(r => r.name)])];
             
-            athSelect.innerHTML = names.length ? '' : '<option value="">請先匯入 CSV</option>';
+            athSelect.innerHTML = names.length ? '' : '<option value="">請先匯入 CSV 檔案</option>';
             names.forEach(n => {
                 const opt = document.createElement('option'); opt.value = n; opt.textContent = n;
                 athSelect.appendChild(opt);
@@ -637,7 +641,7 @@
                 ]
             }, { responsive: true, displayModeBar: false });
 
-            // 2. ★ 捕手視角進壘點與本壘板幾何 (Catcher's POV Strike Zone) ★
+            // 2. 捕手視角進壘點與本壘板幾何 (Catcher's POV Strike Zone)
             const zoneTraces = [];
             const validPlateData = data.filter(d => d.px !== null && d.pz !== null);
             const strikeCount = validPlateData.filter(d => d.isStrike).length;
@@ -662,11 +666,8 @@
                 });
             });
 
-            // 本壘板五角形外框 (捕手視角：X從左到右 -17吋到+17吋，Y從地 面0到尖端)
             const homePlateShapes = [
-                // 立體好球帶矩陣
                 { type: 'rect', xref: 'x', yref: 'y', x0: -8.5, y0: 18, x1: 8.5, y1: 42, line: { color: '#f43f5e', width: 2.5 } },
-                // 本壘板五角形外框 (捕手視角在底部)
                 {
                     type: 'path',
                     path: 'M -8.5 3 L 8.5 3 L 8.5 8 L 0 13 L -8.5 8 Z',
@@ -677,7 +678,7 @@
 
             Plotly.newPlot('zonePlot', zoneTraces, {
                 ...darkLayout,
-                xaxis: { title: '本壘板橫向位置 (Inches - 捕手視角)', range: [-24, 24], zerolinecolor: '#334155', gridcolor: '#1e293b', autorange: 'reversed' }, // 捕手視角通常左右相反或依需求，此處維持標準直覺
+                xaxis: { title: '本壘板橫向位置 (Inches - 捕手視角)', range: [-24, 24], zerolinecolor: '#334155', gridcolor: '#1e293b', autorange: 'reversed' },
                 yaxis: { title: '離地高度 (Inches)', range: [0, 52], zerolinecolor: '#334155', gridcolor: '#1e293b' },
                 shapes: homePlateShapes,
                 annotations: [
@@ -728,7 +729,10 @@
         function renderArsenalTable(records) {
             const tbody = document.getElementById('arsenalTableBody');
             tbody.innerHTML = '';
-            if (!records.length) return;
+            if (!records.length) {
+                tbody.innerHTML = `<tr><td colspan="9" class="p-4 text-center text-slate-500">尚無資料，請點擊上方「匯入 Rapsodo CSV」</td></tr>`;
+                return;
+            }
 
             const groups = {};
             records.forEach(r => {
@@ -866,7 +870,6 @@
             e.preventDefault();
             const ath = document.getElementById('modalName').value;
             window.athletes[ath] = {
-                gender: document.getElementById('modalGender5'] || '男',
                 gender: document.getElementById('modalGender').value,
                 hand: document.getElementById('modalHand').value,
                 height: parseFloat(document.getElementById('modalHeight').value) || '',
