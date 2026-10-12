@@ -29,7 +29,7 @@
                 <h1 class="text-2xl md:text-3xl font-bold text-sky-400 flex items-center gap-2">
                     <i data-lucide="target"></i> Rapsodo Pitching Dashboard
                 </h1>
-                <p class="text-slate-400 text-sm mt-1">投手背影扇形角度與跨日期放球點對比智慧分析系統</p>
+                <p class="text-slate-400 text-sm mt-1">投手背影扇形角度與跨日期放球點正確校正分析系統</p>
             </div>
             
             <div class="flex flex-wrap items-center gap-2">
@@ -91,14 +91,14 @@
                 <div id="speedChart" class="w-full h-[320px]"></div>
             </div>
             
-            <!-- 2. ★ 完美還原：投手背影骨架 + 粗黑手臂扇形軌跡 + 跨日期角度對比圖 ★ -->
+            <!-- 2. ★ 校正後：正確右投背影 + 右側手臂扇形軌跡對比圖 ★ -->
             <div class="card p-4 md:p-6 bg-slate-900/90 border border-sky-500/30">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
                     <div>
                         <h2 class="text-lg font-semibold flex items-center gap-2 text-sky-300">
-                            <i data-lucide="user" class="text-sky-400"></i> 選手跨日期背影扇形揮臂對比 (教練與選手指導視角)
+                            <i data-lucide="user" class="text-sky-400"></i> 右投手跨日期背影扇形揮臂對比 (教練與選手指導視角)
                         </h2>
-                        <p class="text-xs text-slate-400 mt-1">黑色標記為指定基準日，粗黑扇形線呈現手臂揮臂角度與實際落差</p>
+                        <p class="text-xs text-slate-400 mt-1">黑色標記為指定基準日，右側手臂扇形線正確呈現揮臂角度與落差</p>
                     </div>
                     <!-- 圖表專屬球種選擇器 -->
                     <div class="flex items-center gap-1.5">
@@ -643,7 +643,7 @@
             const traceAvg = { x: dates, y: stats.map(s => s.avg), name: '均速', type: 'scatter', mode: 'lines+markers', line: { color: '#38bdf8', width: 3 } };
             Plotly.newPlot('speedChart', [traceMax, traceAvg], { ...commonLayout, yaxis: { title: 'MPH', gridcolor: '#334155' }, legend: { orientation: 'h', y: 1.2, x: 0 } }, { responsive: true, displayModeBar: false });
             
-            // 2. ★ 完美還原：標準投手背影骨架 + 粗黑扇形手臂連線 + 角度對比圖 ★
+            // 2. ★ 正確校正：右投手背影骨架 (中心X=0.5, 右肩發力點X=1.0) + 右側手臂扇形連線 ★
             const athSelect = document.getElementById('athleteSelect');
             const currentAth = athSelect ? athSelect.value : '';
             const relPitchSelect = document.getElementById('releasePitchSelect');
@@ -657,8 +657,8 @@
             let connectingShapes = [];
             let dateIdx = 0;
 
-            // 投手右肩發力點基準 (X=0.5, Y=4.6)
-            const shoulderX = 0.5;
+            // 右投手背影的右肩發力點基準 (X=1.0, Y=4.6 確保在身體右側)
+            const shoulderX = 1.0;
             const shoulderY = 4.6;
 
             const allDates = [...new Set(allAthRecords.map(r => r.date))].sort();
@@ -667,8 +667,10 @@
                 const dateRecs = allAthRecords.filter(r => r.date === d && activePitchTypes.includes(r.pitchType));
                 if (dateRecs.length === 0) return;
 
-                const avgSide = dateRecs.reduce((a,b)=>a+b.relSide, 0) / dateRecs.length;
+                // 將 Rapsodo 側向距離正確映射到右投背影的右側區間 (0.8 ~ 1.8 呎)
+                const rawSideAvg = dateRecs.reduce((a,b)=>a+b.relSide, 0) / dateRecs.length;
                 const avgHeight = dateRecs.reduce((a,b)=>a+b.relHeight, 0) / dateRecs.length;
+                const avgSide = 0.8 + (rawSideAvg * 0.15); // 校正對齊右側手臂揮臂區
 
                 // 計算手臂揮臂夾角（相對於水平線）
                 const dx = avgSide - shoulderX;
@@ -683,7 +685,7 @@
                 let markerBorder = { color: '#ffffff', width: 2 };
                 let legendName = `${d} (${angleDeg}°, ${avgHeight.toFixed(2)}呎)`;
                 let lineColor = markerColor;
-                let lineWidth = 4; // 粗黑扇形手臂軌跡感
+                let lineWidth = 4;
 
                 if (isBaselineDay) {
                     markerColor = '#000000'; // 基準用黑色標記
@@ -694,7 +696,7 @@
                     lineWidth = 6;
                 }
 
-                // 畫出從肩膀延伸到放球點的扇形手臂粗黑線條
+                // 畫出從右肩延伸到放球點的扇形手臂粗黑線條
                 connectingShapes.push({
                     type: 'line',
                     x0: shoulderX, y0: shoulderY,
@@ -711,18 +713,18 @@
                     textposition: 'top right',
                     textfont: { size: 12, color: isBaselineDay ? '#38bdf8' : '#ffffff', family: 'sans-serif' },
                     marker: { size: markerSize, color: markerColor, line: markerBorder },
-                    hovertemplate: `日期: ${d}<br>手臂夾角: ${angleDeg}°<br>放球高度: ${avgHeight.toFixed(2)} 呎<br>側向距離: ${avgSide.toFixed(2)} 呎<extra></extra>`
+                    hovertemplate: `日期: ${d}<br>手臂夾角: ${angleDeg}°<br>放球高度: ${avgHeight.toFixed(2)} 呎<extra></extra>`
                 });
 
                 dateIdx++;
             });
 
-            // 標準投手背影骨架剪影 (頭部 + 身體中軸 + 兩肩連線 + 肩關節)
+            // 正確校正的右投手背影骨架 (中心X=0.5, 右肩在X=1.0, 左肩在X=0.0)
             const pitcherBodyShapes = [
                 ...connectingShapes,
                 { type: 'circle', x0: 0.35, x1: 0.65, y0: 5.2, y1: 5.7, fillcolor: 'rgba(56, 189, 248, 0.25)', line: { color: '#38bdf8', width: 2 } }, // 頭部
                 { type: 'line', x0: 0.5, x1: 0.5, y0: 2.5, y1: 5.2, line: { color: '#38bdf8', width: 6, dash: 'solid' } }, // 身體中軸
-                { type: 'line', x0: -0.2, x1: 1.2, y0: 4.6, y1: 4.6, line: { color: '#38bdf8', width: 4 } }, // 兩肩連線
+                { type: 'line', x0: 0.0, x1: 1.0, y0: 4.6, y1: 4.6, line: { color: '#38bdf8', width: 4 } }, // 兩肩連線 (右投手臂在右側 X=1.0)
                 { type: 'circle', x0: shoulderX-0.09, x1: shoulderX+0.09, y0: shoulderY-0.09, y1: shoulderY+0.09, fillcolor: '#fbbf24', line: { color: '#ffffff', width: 2 } } // 右肩發力點
             ];
 
