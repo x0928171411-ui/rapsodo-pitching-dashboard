@@ -83,13 +83,15 @@
             <div class="card p-3 bg-slate-800/50"><div class="text-slate-400 text-xs">出手穩定評價</div><div id="kpiEval" class="text-xs md:text-sm font-bold text-amber-300 mt-1 leading-tight">--</div></div>
         </div>
 
-        <!-- Charts Layout -->
+        <!-- Charts Layout (位置已依需求調換) -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- 1. 球速成長趨勢 -->
             <div class="card p-4 md:p-6">
                 <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="trending-up" class="text-sky-400"></i> 球速成長趨勢 (均速 vs 極速)</h2><p class="text-xs text-slate-400 mt-1">觀察不同日期的球速演進</p></div>
                 <div id="speedChart" class="w-full h-[320px]"></div>
             </div>
             
+            <!-- 2. 各球種出手位置與高度一致性 (已調換至上方與共軌相鄰) -->
             <div class="card p-4 md:p-6 bg-slate-900/90 border border-sky-500/30">
                 <div class="mb-2">
                     <h2 class="text-lg font-semibold flex items-center gap-2 text-sky-300">
@@ -100,14 +102,16 @@
                 <div id="releaseChart" class="w-full h-[320px]"></div>
             </div>
 
+            <!-- 3. 本壘板進壘點共軌區 (已調換至下方與出手點相鄰) -->
+            <div class="card p-4 md:p-6">
+                <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="crosshair" class="text-emerald-400"></i> 本壘板進壘點共軌區 (Tunneling)</h2><p class="text-xs text-slate-400 mt-1">比較不同球種進壘時的位置重疊度與欺敵效果</p></div>
+                <div id="tunnelChart" class="w-full h-[300px]"></div>
+            </div>
+
+            <!-- 4. 尾勁變化量分析 -->
             <div class="card p-4 md:p-6">
                 <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="compass" class="text-amber-400"></i> 尾勁變化量分析 (垂直 vs 水平變化)</h2><p class="text-xs text-slate-400 mt-1">單位：英吋 (Inches)</p></div>
                 <div id="movementChart" class="w-full h-[300px]"></div>
-            </div>
-
-            <div class="card p-4 md:p-6">
-                <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="crosshair" class="text-emerald-400"></i> 本壘板進壘點共軌區 (Tunneling)</h2><p class="text-xs text-slate-400 mt-1">比較不同球種進壘時的位置重疊度</p></div>
-                <div id="tunnelChart" class="w-full h-[300px]"></div>
             </div>
         </div>
 
@@ -239,7 +243,6 @@
                         
                         if (!pitchId || isNaN(speed) || !pitchType) return;
                         
-                        // 若已有相同 PitchID，直接更新取代，確保新匯入不被擋下
                         window.records = window.records.filter(r => r.pitchId !== pitchId);
                         
                         const rawDate = row['Pitch Created At'];
@@ -454,10 +457,12 @@
                 margin: { t: 10, r: 20, l: 40, b: 40 }, xaxis: { gridcolor: '#334155' }, yaxis: { gridcolor: '#334155' }
             };
             
+            // 1. 速差圖
             const traceMax = { x: dates, y: stats.map(s => s.max), name: '極速', type: 'scatter', mode: 'lines+markers', line: { color: '#34d399', width: 2, dash: 'dot' } };
             const traceAvg = { x: dates, y: stats.map(s => s.avg), name: '均速', type: 'scatter', mode: 'lines+markers', line: { color: '#38bdf8', width: 3 } };
             Plotly.newPlot('speedChart', [traceMax, traceAvg], { ...commonLayout, yaxis: { title: 'MPH', gridcolor: '#334155' }, legend: { orientation: 'h', y: 1.2, x: 0 } }, { responsive: true, displayModeBar: false });
             
+            // 2. 放球點一致性 (投手背面視角)
             const pitchTypes = [...new Set(allAthRecords.map(r => r.pitchType))];
             const releaseTraces = pitchTypes.map(pt => {
                 const ptData = allAthRecords.filter(r => r.pitchType === pt);
@@ -492,9 +497,7 @@
                 legend: { orientation: 'h', y: -0.2, x: 0 }
             }, { responsive: true, displayModeBar: false });
             
-            const traceMove = { x: stats.map(s => s.avgHorz), y: stats.map(s => s.avgVert), text: dates, mode: 'text+markers+lines', marker: { size: 10, color: '#f59e0b' } };
-            Plotly.newPlot('movementChart', [traceMove], { ...commonLayout, xaxis: { title: '水平變化 Horz Break (Inches)' }, yaxis: { title: '垂直變化 Induced Vert Break (Inches)' } }, { responsive: true, displayModeBar: false });
-
+            // 3. 本壘板進壘點共軌區 (Tunneling)
             const tunnelTraces = pitchTypes.map(pt => {
                 const ptData = allAthRecords.filter(r => r.pitchType === pt);
                 return {
@@ -506,14 +509,18 @@
                 };
             });
 
-            const shapes = [{ type: 'rect', x0: -8.5, x1: 8.5, y0: 18, y1: 38, line: { color: '#38bdf8', width: 2, dash: 'dash' } }];
+            const strikeZoneShapes = [{ type: 'rect', x0: -8.5, x1: 8.5, y0: 18, y1: 38, line: { color: '#38bdf8', width: 2, dash: 'dash' } }];
             Plotly.newPlot('tunnelChart', tunnelTraces, { 
                 ...commonLayout, 
-                shapes: shapes, 
+                shapes: strikeZoneShapes, 
                 xaxis: { title: '橫向進壘點 Plate Side (Inches)', range: [-25, 25] }, 
                 yaxis: { title: '高度 Plate Height (Inches)', range: [-5, 55] },
                 legend: { orientation: 'h', y: 1.2, x: 0 }
             }, { responsive: true, displayModeBar: false });
+
+            // 4. 尾勁變化量分析 (Movement)
+            const traceMove = { x: stats.map(s => s.avgHorz), y: stats.map(s => s.avgVert), text: dates, mode: 'text+markers+lines', marker: { size: 10, color: '#f59e0b' } };
+            Plotly.newPlot('movementChart', [traceMove], { ...commonLayout, xaxis: { title: '水平變化 Horz Break (Inches)' }, yaxis: { title: '垂直變化 Induced Vert Break (Inches)' } }, { responsive: true, displayModeBar: false });
         }
 
         function openAthleteModal() {
@@ -521,28 +528,4 @@
             if (!ath) return alert('請先匯入投手資料。');
             const profile = window.athletes[ath] || {};
             document.getElementById('athleteModalName').value = ath;
-            document.getElementById('athleteModalGender').value = profile.gender || '男';
-            document.getElementById('athleteModalDOB').value = profile.dob || '';
-            document.getElementById('athleteModalHeight').value = profile.height || '';
-            document.getElementById('athleteModalWeight').value = profile.weight || '';
-            document.getElementById('athleteModal').classList.remove('hidden');
-        }
-
-        function closeAthleteModal() { document.getElementById('athleteModal').classList.add('hidden'); }
-
-        function handleAthleteSubmit(e) {
-            e.preventDefault();
-            const ath = document.getElementById('athleteModalName').value;
-            window.athletes[ath] = {
-                gender: document.getElementById('athleteModalGender').value,
-                dob: document.getElementById('athleteModalDOB').value,
-                height: parseFloat(document.getElementById('athleteModalHeight').value) || '',
-                weight: parseFloat(document.getElementById('athleteModalWeight').value) || ''
-            };
-            saveDataLocally();
-            closeAthleteModal();
-            updateDashboard();
-        }
-    </script>
-</body>
-</html>
+            document.getElementById
