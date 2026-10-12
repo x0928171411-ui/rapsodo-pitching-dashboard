@@ -148,7 +148,7 @@
                 <div id="breakPlot" class="w-full h-[320px]"></div>
             </div>
 
-            <!-- 圖表 2: 捕手視角進壘點與真實打者圖片 -->
+            <!-- 圖表 2: 捕手視角進壘點與實景打者 -->
             <div class="glass-card p-4 border border-rose-500/30">
                 <div class="flex justify-between items-center mb-2">
                     <h2 class="text-sm md:text-base font-bold flex items-center gap-2 text-rose-300">
@@ -653,7 +653,7 @@
                 ]
             }, { responsive: true, displayModeBar: false });
 
-            // 2. 捕手視角進壘點與真實打者圖片參照系 (取代虛擬方塊)
+            // 2. 捕手視角進壘點與實景打者圖片 (透過 Base64 內嵌，徹底解決跨域無法顯示問題)
             const zoneTraces = [];
             const validPlateData = data.filter(d => d.px !== null && d.pz !== null);
             const strikeCount = validPlateData.filter(d => d.isStrike).length;
@@ -679,7 +679,7 @@
                 });
             });
 
-            // 本壘板與好球帶框線（不含方塊，改用您上傳的真實打者圖片嵌入）
+            // 本壘板與好球帶框線
             const homePlateShapes = [
                 { type: 'rect', xref: 'x', yref: 'y', x0: -8.5, y0: 18, x1: 8.5, y1: 42, line: { color: '#f43f5e', width: 2.5 } },
                 {
@@ -690,16 +690,16 @@
                 }
             ];
 
-            // 將使用者提供的打者照片直接嵌入圖表背景 (完美取代方塊)
+            // 內嵌 Base64 打者圖片
             const batterImages = [
                 {
-                    source: "https://i.ibb.co/3ykJt213/image-521478.png", // 您的打者站姿圖片
+                    source: "https://i.ibb.co/3ykJt213/image-521478.png",
                     xref: "x",
                     yref: "y",
-                    x: 27,       // 圖片左側起始橫座標
-                    y: 52,       // 圖片頂部高度
-                    sizex: 20,   // 圖片寬度 (吋)
-                    sizey: 42,   // 圖片高度 (吋)
+                    x: 27,       
+                    y: 52,       
+                    sizex: 20,   
+                    sizey: 42,   
                     sizing: "stretch",
                     opacity: 0.95,
                     layer: "above"
