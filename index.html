@@ -28,7 +28,7 @@
                 <h1 class="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-teal-300 to-indigo-300 flex items-center gap-2.5">
                     <i data-lucide="activity" class="text-sky-400"></i> PRO RAPSODO PITCHING ANALYTICS
                 </h1>
-                <p class="text-slate-400 text-xs md:text-sm mt-1">進階投球運動生物力學、捕手視角（含實景打者站姿參照）與逐球歷程追蹤</p>
+                <p class="text-slate-400 text-xs md:text-sm mt-1">進階投球運動生物力學、捕手視角（實景打者背景投球追蹤）</p>
             </div>
             
             <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
@@ -149,11 +149,11 @@
                 <div id="breakPlot" class="w-full h-[320px]"></div>
             </div>
 
-            <!-- 圖表 2: 捕手視角進壘點與實景打者 -->
+            <!-- 圖表 2: 捕手視角進壘點與自創實景打者背景 -->
             <div class="glass-card p-4 border border-rose-500/30">
                 <div class="flex justify-between items-center mb-2">
                     <h2 class="text-sm md:text-base font-bold flex items-center gap-2 text-rose-300">
-                        <i data-lucide="crosshair" class="text-rose-400 w-4 h-4"></i> 捕手視角進壘點與實景右打者站姿
+                        <i data-lucide="crosshair" class="text-rose-400 w-4 h-4"></i> 捕手視角進壘點與自創實景打者
                     </h2>
                     <span id="strikeRatioBadge" class="text-[11px] px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 font-semibold">好球率: --</span>
                 </div>
@@ -601,7 +601,7 @@
                 ]
             }, { responsive: true, displayModeBar: false });
 
-            // 2. 捕手視角進壘點與實景打者圖片
+            // 2. 捕手視角進壘點與自創實景打者背景圖片 (完美對齊 28 到 -28 座標軸)
             const zoneTraces = [];
             const validPlateData = data.filter(d => d.px !== null && d.pz !== null);
             const strikeCount = validPlateData.filter(d => d.isStrike).length;
@@ -618,7 +618,7 @@
                     type: 'scatter',
                     name: pt,
                     marker: { 
-                        size: 10, 
+                        size: 11, 
                         color: PITCH_COLORS[pt] || '#38bdf8',
                         symbol: subset.map(d => d.isStrike ? 'circle' : 'circle-open'),
                         line: { width: 2, color: PITCH_COLORS[pt] || '#38bdf8' }
@@ -627,41 +627,27 @@
                 });
             });
 
-            const homePlateShapes = [
-                { type: 'rect', xref: 'x', yref: 'y', x0: -8.5, y0: 18, x1: 8.5, y1: 42, line: { color: '#f43f5e', width: 2.5 } },
+            // 將使用者上傳的自創實景打者圖片作為整個圖表的背景底圖 (source 設為您提供的自創圖片網址)
+            const customBackgroundImages = [
                 {
-                    type: 'path',
-                    path: 'M -8.5 3 L 8.5 3 L 8.5 8 L 0 13 L -8.5 8 Z',
-                    fillcolor: 'rgba(56, 189, 248, 0.15)',
-                    line: { color: '#38bdf8', width: 2 }
-                }
-            ];
-
-            const batterImages = [
-                {
-                    source: "https://i.ibb.co/3ykJt213/image-521478.png",
+                    source: "https://i.ibb.co/3ykJt213/image-521478.png", // 您上傳的自創打者背景圖
                     xref: "x",
                     yref: "y",
-                    x: 27,       
-                    y: 52,       
-                    sizex: 20,   
-                    sizey: 42,   
+                    x: 28,      // 覆蓋整個 X 軸範圍 (從 28 到 -28)
+                    y: 58,      // 頂部高度
+                    sizex: 56,  // 寬度覆蓋 56 吋
+                    sizey: 58,  // 高度覆蓋 58 吋
                     sizing: "stretch",
-                    opacity: 0.95,
-                    layer: "above"
+                    opacity: 0.85, // 適當透明度，讓打者與場景更自然融合
+                    layer: "below" // 設在下方作為背景，讓投球點跟好球帶顯示在打者上方
                 }
             ];
 
             Plotly.newPlot('zonePlot', zoneTraces, {
                 ...darkLayout,
-                xaxis: { title: '本壘板橫向位置 (Inches - 捕手視角)', range: [28, -28], zerolinecolor: '#334155', gridcolor: '#1e293b' },
-                yaxis: { title: '離地高度 (Inches)', range: [0, 55], zerolinecolor: '#334155', gridcolor: '#1e293b' },
-                shapes: homePlateShapes,
-                images: batterImages,
-                annotations: [
-                    { x: 0, y: 30, text: '好球帶', showarrow: false, font: { color: '#f43f5e', size: 11 } },
-                    { x: 0, y: 7, text: '本壘板', showarrow: false, font: { color: '#38bdf8', size: 10 } }
-                ]
+                xaxis: { title: '本壘板橫向位置 (Inches - 捕手視角)', range: [28, -28], zerolinecolor: '#334155', gridcolor: 'rgba(255,255,255,0.05)' },
+                yaxis: { title: '離地高度 (Inches)', range: [0, 58], zerolinecolor: '#334155', gridcolor: 'rgba(255,255,255,0.05)' },
+                images: customBackgroundImages
             }, { responsive: true, displayModeBar: false });
 
             // 3. Trend Chart
