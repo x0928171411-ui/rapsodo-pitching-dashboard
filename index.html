@@ -58,7 +58,7 @@
                     <i data-lucide="user" class="text-sky-400 w-4 h-4"></i>
                     <span class="font-medium text-xs md:text-sm text-slate-300">投手：</span>
                     <select id="athleteSelect" onchange="onAthleteChange()" class="input-field min-w-[140px] font-bold text-sky-300">
-                        <option value="">請先匯入 CSV 檔案</option>
+                        <option value="">載入中...</option>
                     </select>
                 </div>
 
@@ -81,7 +81,6 @@
 
             <div class="flex items-center gap-2 justify-between md:justify-end">
                 <div id="athleteProfileBadge" class="text-xs text-slate-300 flex items-center gap-3 bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-700/60">
-                    <span>請點擊上方匯入資料</span>
                 </div>
                 <button onclick="openAthleteModal()" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-600 rounded-lg text-xs">
                     <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> 編輯資料
@@ -271,7 +270,7 @@
         </div>
     </div>
 
-    <!-- Firebase 即時同步核心 -->
+    <!-- Firebase 即時同步與主程式邏輯 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
@@ -300,27 +299,35 @@
             syncEl.className = "px-3 py-1.5 bg-emerald-950/80 text-emerald-400 border border-emerald-700/50 rounded-full text-xs font-medium flex items-center gap-2";
         }
 
+        // 初始化載入本機暫存（避免畫面變空）
+        window.athletes = JSON.parse(localStorage.getItem('rapsodo_athletes')) || {};
+        window.records = JSON.parse(localStorage.getItem('rapsodo_records')) || [];
+        updateDropdowns();
+        updateDashboard();
+
+        // 監聽雲端資料
         onValue(window.rapsodoRecordsRef, (snapshot) => {
             const data = snapshot.val();
-            window.records = data ? (Array.isArray(data) ? data : Object.values(data)) : [];
-            localStorage.setItem('rapsodo_records', JSON.stringify(window.records));
-            updateDropdowns();
-            updateDashboard();
+            if (data) {
+                window.records = Array.isArray(data) ? data : Object.values(data);
+                localStorage.setItem('rapsodo_records', JSON.stringify(window.records));
+                updateDropdowns();
+                updateDashboard();
+            }
         });
 
         onValue(window.rapsodoAthletesRef, (snapshot) => {
             const data = snapshot.val();
-            window.athletes = data || {};
-            localStorage.setItem('rapsodo_athletes', JSON.stringify(window.athletes));
-            updateDropdowns();
-            updateDashboard();
+            if (data) {
+                window.athletes = data;
+                localStorage.setItem('rapsodo_athletes', JSON.stringify(window.athletes));
+                updateDropdowns();
+                updateDashboard();
+            }
         });
     </script>
 
     <script>
-        window.athletes = JSON.parse(localStorage.getItem('rapsodo_athletes')) || {};
-        window.records = JSON.parse(localStorage.getItem('rapsodo_records')) || [];
-
         const PITCH_COLORS = {
             'FB': '#ef4444', 'FA': '#ef4444', 'FF': '#ef4444',
             'FT': '#f97316', 'SI': '#ea580c',
@@ -332,8 +339,10 @@
 
         document.addEventListener("DOMContentLoaded", () => {
             lucide.createIcons();
-            updateDropdowns();
-            updateDashboard();
+            if (window.records && window.records.length > 0) {
+                updateDropdowns();
+                updateDashboard();
+            }
         });
 
         function saveData() {
@@ -433,7 +442,7 @@
                         const rawRelS = getCol(row, ['RelSide (Feet)', 'RelSide (ft)', 'RelSide']);
                         const relSide = rawRelS !== null ? parseFloat(rawRelS) : null;
 
-                        // ★ 關鍵校正：將進壘點橫向座標 px 乘上 -1，使其與捕手視角右打者站位方向正確對應 ★
+                        // 橫向進壘點校正 (讓球點與右打者左右位置正確對應)
                         const rawPX = getCol(row, ['PlateLocSide (Inches)', 'PlateLocSide']);
                         const px = rawPX !== null ? -parseFloat(rawPX) : null;
 
@@ -472,8 +481,9 @@
 
         function updateDropdowns() {
             const athSelect = document.getElementById('athleteSelect');
+            if (!athSelect) return;
             const prevAth = athSelect.value;
-            const names = [...new Set([...Object.keys(window.athletes), ...window.records.map(r => r.name)])];
+            const names = [...new Set([...Object.keys(window.athletes || {}), ...(window.records || []).map(r => r.name)])];
             
             athSelect.innerHTML = names.length ? '' : '<option value="">請先匯入 CSV 檔案</option>';
             names.forEach(n => {
@@ -492,7 +502,7 @@
             const dateSelect = document.getElementById('dateFilterSelect');
             if (!ath) return;
 
-            const athRecords = window.records.filter(r => r.name === ath);
+            const athRecords = (window.records || []).filter(r => r.name === ath);
 
             const dates = [...new Set(athRecords.map(r => r.date))].sort().reverse();
             dateSelect.innerHTML = `<option value="ALL">全部訓練日 (${dates.length} 天)</option>`;
@@ -522,15 +532,18 @@
             const date = document.getElementById('dateFilterSelect').value;
             if (!ath) return;
 
-            const profile = window.athletes[ath] || {};
-            document.getElementById('athleteProfileBadge').innerHTML = `
-                <span class="font-bold text-sky-400 text-sm">${ath}</span>
-                <span>${profile.hand === 'L' ? '左投 (LHP)' : '右投 (RHP)'}</span>
-                <span>${profile.height ? profile.height + 'cm' : '--'}</span>
-                <span>${profile.weight ? profile.weight + 'kg' : '--'}</span>
-            `;
+            const profile = (window.athletes || {})[ath] || {};
+            const badgeEl = document.getElementById('athleteProfileBadge');
+            if (badgeEl) {
+                badgeEl.innerHTML = `
+                    <span class="font-bold text-sky-400 text-sm">${ath}</span>
+                    <span>${profile.hand === 'L' ? '左投 (LHP)' : '右投 (RHP)'}</span>
+                    <span>${profile.height ? profile.height + 'cm' : '--'}</span>
+                    <span>${profile.weight ? profile.weight + 'kg' : '--'}</span>
+                `;
+            }
 
-            let filtered = window.records.filter(r => r.name === ath);
+            let filtered = (window.records || []).filter(r => r.name === ath);
             const totalAthPitches = filtered.length;
 
             if (date !== 'ALL') filtered = filtered.filter(r => r.date === date);
@@ -538,14 +551,15 @@
 
             updateKPIs(filtered, totalAthPitches, pt);
             renderCharts(filtered, pt);
-            renderArsenalTable(window.records.filter(r => r.name === ath && (date === 'ALL' || r.date === date)));
+            renderArsenalTable((window.records || []).filter(r => r.name === ath && (date === 'ALL' || r.date === date)));
             renderPitchLogTable(filtered, date, pt);
         }
 
         function updateKPIs(data, totalAthPitches, currentPt) {
             if (data.length === 0) {
                 ['kpiCount','kpiAvgVelo','kpiMaxVelo','kpiSpin','kpiEfficiency','kpiIVB','kpiHB','kpiRelease','kpiEval'].forEach(id => {
-                    document.getElementById(id).textContent = '--';
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = '--';
                 });
                 return;
             }
@@ -647,7 +661,8 @@
             const validPlateData = data.filter(d => d.px !== null && d.pz !== null);
             const strikeCount = validPlateData.filter(d => d.isStrike).length;
             const strikePct = validPlateData.length ? ((strikeCount / validPlateData.length) * 100).toFixed(1) : 0;
-            document.getElementById('strikeRatioBadge').textContent = `好球率 (Strike%): ${strikePct}% (${strikeCount}/${validPlateData.length})`;
+            const strikeBadgeEl = document.getElementById('strikeRatioBadge');
+            if (strikeBadgeEl) strikeBadgeEl.textContent = `好球率 (Strike%): ${strikePct}% (${strikeCount}/${validPlateData.length})`;
 
             types.forEach(pt => {
                 const subset = validPlateData.filter(d => d.pitchType === pt);
@@ -669,16 +684,13 @@
 
             // 右打者剪影與好球帶、本壘板相對位置
             const rightBatterShapes = [
-                // 好球帶 (紅框)
                 { type: 'rect', xref: 'x', yref: 'y', x0: -8.5, y0: 18, x1: 8.5, y1: 42, line: { color: '#f43f5e', width: 2.5 } },
-                // 本壘板五角形 (捕手視角)
                 {
                     type: 'path',
                     path: 'M -8.5 3 L 8.5 3 L 8.5 8 L 0 13 L -8.5 8 Z',
                     fillcolor: 'rgba(56, 189, 248, 0.15)',
                     line: { color: '#38bdf8', width: 2 }
                 },
-                // 標準 180cm / 90kg 右打者站姿與身形參照區塊 (位於捕手視角的左側打擊區)
                 {
                     type: 'rect',
                     xref: 'x', yref: 'y',
@@ -741,6 +753,7 @@
 
         function renderArsenalTable(records) {
             const tbody = document.getElementById('arsenalTableBody');
+            if (!tbody) return;
             tbody.innerHTML = '';
             if (!records.length) {
                 tbody.innerHTML = `<tr><td colspan="9" class="p-4 text-center text-slate-500">尚無資料，請點擊上方「匯入 Rapsodo CSV」</td></tr>`;
@@ -807,11 +820,95 @@
             const tbody = document.getElementById('pitchLogTableBody');
             const titleEl = document.getElementById('pitchListHeaderTitle');
             const badgeEl = document.getElementById('pitchListCountBadge');
+            if (!tbody) return;
             tbody.innerHTML = '';
 
             const dateLabel = selectedDate === 'ALL' ? '全部訓練日' : selectedDate;
             const ptLabel = selectedPitchType === 'ALL' ? '全部球種' : selectedPitchType;
-            titleEl.textContent = `【${dateLabel}】${ptLabel} 逐球詳細投球明細列表 (Pitch Log)`;
-            badgeEl.textContent = `共 ${records.length} 球`;
+            if (titleEl) titleEl.textContent = `【${dateLabel}】${ptLabel} 逐球詳細投球明細列表 (Pitch Log)`;
+            if (badgeEl) badgeEl.textContent = `共 ${records.length} 球`;
 
-            if (records.length === 0
+            if (records.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" class="p-4 text-center text-slate-500">此篩選條件下無投球紀錄</td></tr>`;
+                return;
+            }
+
+            const sorted = [...records].sort((a, b) => {
+                if (a.pitchNum && b.pitchNum) return b.pitchNum - a.pitchNum;
+                return (b.time || '').localeCompare(a.time || '');
+            });
+
+            sorted.forEach(r => {
+                const badgeColor = PITCH_COLORS[r.pitchType] || '#94a3b8';
+                const strikeBadge = r.isStrike 
+                    ? `<span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-700/60 font-sans font-semibold">Strike</span>` 
+                    : `<span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400 border border-slate-700 font-sans">Ball</span>`;
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-800/50 transition">
+                        <td class="p-2.5 text-slate-300 font-bold">#${r.pitchNum || '--'}</td>
+                        <td class="p-2.5 text-slate-400 text-[11px]">${r.date} ${r.time}</td>
+                        <td class="p-2.5 font-bold flex items-center gap-1.5 font-sans">
+                            <span class="w-2 h-2 rounded-full" style="background-color: ${badgeColor}"></span>
+                            <span class="text-white">${r.pitchType}</span>
+                        </td>
+                        <td class="p-2.5 text-emerald-400 font-bold text-sm">${r.speed.toFixed(1)}</td>
+                        <td class="p-2.5 text-indigo-300">${r.spin ? Math.round(r.spin) : '--'}</td>
+                        <td class="p-2.5 text-teal-300">${r.spinEff !== null ? r.spinEff.toFixed(0) + '%' : '--'}</td>
+                        <td class="p-2.5 text-cyan-300">${r.ivb !== null ? (r.ivb > 0 ? '+' : '') + r.ivb.toFixed(1) + '"' : '--'}</td>
+                        <td class="p-2.5 text-sky-300">${r.hb !== null ? (r.hb > 0 ? '+' : '') + r.hb.toFixed(1) + '"' : '--'}</td>
+                        <td class="p-2.5 text-amber-300">${r.relHeight !== null ? r.relHeight.toFixed(2) + ' ft' : '--'}</td>
+                        <td class="p-2.5">${strikeBadge}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function exportProcessedData() {
+            const ath = document.getElementById('athleteSelect').value;
+            if (!ath) return alert('目前尚無資料可匯出');
+            const data = (window.records || []).filter(r => r.name === ath);
+            const csv = Papa.unparse(data);
+            const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `${ath}_Rapsodo_Analytics.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        window.openAthleteModal = function() {
+            const ath = document.getElementById('athleteSelect').value;
+            if (!ath) return alert('請先選擇選手');
+            const p = (window.athletes || {})[ath] || {};
+            document.getElementById('modalName').value = ath;
+            document.getElementById('modalGender').value = p.gender || '男';
+            document.getElementById('modalHand').value = p.hand || 'R';
+            document.getElementById('modalHeight').value = p.height || '';
+            document.getElementById('modalWeight').value = p.weight || '';
+            document.getElementById('athleteModal').classList.remove('hidden');
+        }
+
+        window.closeAthleteModal = function() {
+            document.getElementById('athleteModal').classList.add('hidden');
+        }
+
+        window.handleAthleteSubmit = function(e) {
+            e.preventDefault();
+            const ath = document.getElementById('modalName').value;
+            if (!window.athletes) window.athletes = {};
+            window.athletes[ath] = {
+                gender: document.getElementById('modalGender').value,
+                hand: document.getElementById('modalHand').value,
+                height: parseFloat(document.getElementById('modalHeight').value) || '',
+                weight: parseFloat(document.getElementById('modalWeight').value) || ''
+            };
+            saveData();
+            closeAthleteModal();
+            updateDashboard();
+        }
+    </script>
+</body>
+</html>
