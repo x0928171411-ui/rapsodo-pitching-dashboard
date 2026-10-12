@@ -83,7 +83,7 @@
             <div class="card p-3 bg-slate-800/50"><div class="text-slate-400 text-xs">出手穩定評價</div><div id="kpiEval" class="text-xs md:text-sm font-bold text-amber-300 mt-1 leading-tight">--</div></div>
         </div>
 
-        <!-- Charts Layout -->
+        <!-- Charts Layout (Top 4 standard charts) -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- 1. 球速成長趨勢 -->
             <div class="card p-4 md:p-6">
@@ -91,36 +91,23 @@
                 <div id="speedChart" class="w-full h-[320px]"></div>
             </div>
             
-            <!-- 2. ★ 投手跨日期背影扇形揮臂對比（無角度計算版本） ★ -->
-            <div class="card p-4 md:p-6 bg-slate-900/90 border border-sky-500/30">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
-                    <div>
-                        <h2 class="text-lg font-semibold flex items-center gap-2 text-sky-300">
-                            <i data-lucide="user" class="text-sky-400"></i> 投手跨日期背影扇形揮臂對比 (教練與選手指導視角)
-                        </h2>
-                        <p class="text-xs text-slate-400 mt-1">黑色標記為指定基準日，手臂扇形線清楚呈現放球點與高度落差</p>
-                    </div>
-                    <!-- 圖表專屬球種選擇器 -->
-                    <div class="flex items-center gap-1.5">
-                        <span class="text-xs text-slate-300 font-medium">檢視球種:</span>
-                        <select id="releasePitchSelect" onchange="updateDashboard()" class="bg-slate-800 text-sky-300 border border-slate-600 rounded px-2 py-1 text-xs font-bold">
-                            <option value="">全部球種</option>
-                        </select>
-                    </div>
-                </div>
-                <div id="releaseChart" class="w-full h-[340px]"></div>
-            </div>
-
-            <!-- 3. 本壘板進壘點共軌區 (Tunneling) -->
+            <!-- 2. 本壘板進壘點共軌區 (Tunneling) -->
             <div class="card p-4 md:p-6">
                 <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="crosshair" class="text-emerald-400"></i> 本壘板進壘點共軌區 (Tunneling)</h2><p class="text-xs text-slate-400 mt-1">比較不同球種進壘時的位置重疊度與欺敵效果</p></div>
-                <div id="tunnelChart" class="w-full h-[300px]"></div>
+                <div id="tunnelChart" class="w-full h-[320px]"></div>
             </div>
 
-            <!-- 4. 尾勁變化量分析 -->
+            <!-- 3. 尾勁變化量分析 -->
             <div class="card p-4 md:p-6">
                 <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="compass" class="text-amber-400"></i> 尾勁變化量分析 (垂直 vs 水平變化)</h2><p class="text-xs text-slate-400 mt-1">單位：英吋 (Inches)</p></div>
                 <div id="movementChart" class="w-full h-[300px]"></div>
+            </div>
+
+            <!-- 4. 預留或功能區 -->
+            <div class="card p-4 md:p-6 flex flex-col justify-center items-center text-center bg-slate-800/30 border border-slate-700">
+                <i data-lucide="shield-check" class="w-12 h-12 text-sky-400 mb-2"></i>
+                <h3 class="text-base font-semibold text-white">投球動作與放球點穩定度監控</h3>
+                <p class="text-xs text-slate-400 mt-1 max-w-sm">透過下方表格設定基準日，並在下方大型背影扇形圖中進行直觀比對，協助小選手建立精準肢體記憶。</p>
             </div>
         </div>
 
@@ -148,6 +135,26 @@
                     <tbody id="compareTableBody" class="divide-y divide-slate-700"></tbody>
                 </table>
             </div>
+        </div>
+
+        <!-- ★ 放大版：投手跨日期背影扇形揮臂對比圖 (移至表格下方並放大) ★ -->
+        <div class="card p-6 bg-slate-900/95 border-2 border-sky-500/50 shadow-2xl">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-3 border-b border-slate-700">
+                <div>
+                    <h2 class="text-xl font-bold flex items-center gap-2 text-sky-300">
+                        <i data-lucide="user" class="text-sky-400 w-6 h-6"></i> 投手跨日期背影扇形揮臂對比 (教練與選手指導視角)
+                    </h2>
+                    <p class="text-sm text-slate-400 mt-1">黑色標記為指定基準日，粗黑手臂扇形線清楚呈現放球點與高度落差，適合放大解說</p>
+                </div>
+                <!-- 圖表專屬球種選擇器 -->
+                <div class="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-600">
+                    <span class="text-sm text-slate-200 font-semibold">檢視球種:</span>
+                    <select id="releasePitchSelect" onchange="updateDashboard()" class="bg-slate-950 text-sky-300 border border-slate-600 rounded px-3 py-1 text-sm font-bold">
+                        <option value="">全部球種</option>
+                    </select>
+                </div>
+            </div>
+            <div id="releaseChart" class="w-full h-[480px]"></div>
         </div>
 
         <!-- History Table -->
@@ -643,7 +650,7 @@
             const traceAvg = { x: dates, y: stats.map(s => s.avg), name: '均速', type: 'scatter', mode: 'lines+markers', line: { color: '#38bdf8', width: 3 } };
             Plotly.newPlot('speedChart', [traceMax, traceAvg], { ...commonLayout, yaxis: { title: 'MPH', gridcolor: '#334155' }, legend: { orientation: 'h', y: 1.2, x: 0 } }, { responsive: true, displayModeBar: false });
             
-            // 2. ★ 投手跨日期背影扇形揮臂對比（純視覺扇形對比，無角度計算） ★
+            // 2. 投手跨日期背影扇形揮臂對比（放大版，無角度計算）
             const athSelect = document.getElementById('athleteSelect');
             const currentAth = athSelect ? athSelect.value : '';
             const relPitchSelect = document.getElementById('releasePitchSelect');
@@ -657,7 +664,6 @@
             let connectingShapes = [];
             let dateIdx = 0;
 
-            // 右肩發力點固定支點 (X=0.9, Y=4.6)
             const shoulderX = 0.9;
             const shoulderY = 4.6;
 
@@ -674,22 +680,21 @@
                 const isBaselineDay = Object.entries(athleteBaselines).some(([pt, bDate]) => bDate === d && activePitchTypes.includes(pt));
 
                 let markerColor = dateColors[dateIdx % dateColors.length];
-                let markerSize = 16;
+                let markerSize = 18;
                 let markerBorder = { color: '#ffffff', width: 2 };
                 let legendName = `${d} (${avgHeight.toFixed(2)}呎)`;
                 let lineColor = markerColor;
-                let lineWidth = 5;
+                let lineWidth = 6;
 
                 if (isBaselineDay) {
                     markerColor = '#000000'; // 基準用黑色標記
-                    markerSize = 22;
-                    markerBorder = { color: '#38bdf8', width: 3 }; // 亮藍外框
+                    markerSize = 26;
+                    markerBorder = { color: '#38bdf8', width: 4 }; // 亮藍外框
                     legendName = `🎯 基準日: ${d} (${avgHeight.toFixed(2)}呎)`;
                     lineColor = '#38bdf8'; // 基準用亮藍色扇形線
-                    lineWidth = 7;
+                    lineWidth = 8;
                 }
 
-                // 手臂直接連接球點
                 connectingShapes.push({
                     type: 'line',
                     x0: shoulderX, y0: shoulderY,
@@ -704,7 +709,7 @@
                     mode: 'markers+text',
                     text: [` ${avgHeight.toFixed(2)}呎`],
                     textposition: 'top right',
-                    textfont: { size: 12, color: isBaselineDay ? '#38bdf8' : '#ffffff', family: 'sans-serif' },
+                    textfont: { size: 14, color: isBaselineDay ? '#38bdf8' : '#ffffff', family: 'sans-serif' },
                     marker: { size: markerSize, color: markerColor, line: markerBorder },
                     hovertemplate: `日期: ${d}<br>放球高度: ${avgHeight.toFixed(2)} 呎<br>側向距離: ${avgSide.toFixed(2)} 呎<extra></extra>`
                 });
@@ -712,21 +717,20 @@
                 dateIdx++;
             });
 
-            // 投手背影骨架
             const pitcherBodyShapes = [
                 ...connectingShapes,
                 { type: 'circle', x0: 0.35, x1: 0.65, y0: 5.2, y1: 5.7, fillcolor: 'rgba(56, 189, 248, 0.25)', line: { color: '#38bdf8', width: 2 } }, // 頭部
-                { type: 'line', x0: 0.5, x1: 0.5, y0: 2.5, y1: 5.2, line: { color: '#38bdf8', width: 6, dash: 'solid' } }, // 身體中軸
-                { type: 'line', x0: 0.1, x1: 0.9, y0: 4.6, y1: 4.6, line: { color: '#38bdf8', width: 4 } }, // 兩肩連線
-                { type: 'circle', x0: shoulderX-0.08, x1: shoulderX+0.08, y0: shoulderY-0.08, y1: shoulderY+0.08, fillcolor: '#fbbf24', line: { color: '#ffffff', width: 2 } } // 右肩發力點
+                { type: 'line', x0: 0.5, x1: 0.5, y0: 2.0, y1: 5.2, line: { color: '#38bdf8', width: 7, dash: 'solid' } }, // 身體中軸
+                { type: 'line', x0: 0.1, x1: 0.9, y0: 4.6, y1: 4.6, line: { color: '#38bdf8', width: 5 } }, // 兩肩連線
+                { type: 'circle', x0: shoulderX-0.09, x1: shoulderX+0.09, y0: shoulderY-0.09, y1: shoulderY+0.09, fillcolor: '#fbbf24', line: { color: '#ffffff', width: 2 } } // 右肩發力點
             ];
 
             Plotly.newPlot('releaseChart', releaseTraces, { 
                 ...commonLayout,
                 shapes: pitcherBodyShapes,
                 xaxis: { title: '放球點側向距離 Rel Side (呎)', range: [-0.2, 1.8], zeroline: false }, 
-                yaxis: { title: '放球點高度 Rel Height (呎)', range: [2.0, 6.5], zeroline: false },
-                legend: { orientation: 'h', y: -0.25, x: 0 }
+                yaxis: { title: '放球點高度 Rel Height (呎)', range: [1.5, 6.8], zeroline: false },
+                legend: { orientation: 'h', y: -0.3, x: 0 }
             }, { responsive: true, displayModeBar: false });
             
             // 3. 本壘板進壘點共軌區 (Tunneling)
