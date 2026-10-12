@@ -15,7 +15,7 @@
     <style>
         body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
         .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; }
-        .input-field { background-color: #0f172a; border: 1px solid #475569; color: #f8fafc; border-radius: 0.5rem; padding: 0.5rem 0.75rem; }
+        .input-field { background-color: #0f172a; border: 1px solid #475569; color: #f8fafc; border-radius: 0.5rem; padding: 0.4rem 0.6rem; font-size: 0.875rem; }
         .input-field:focus { outline: none; border-color: #38bdf8; }
         .input-disabled { background-color: #1e293b; border: 1px solid #334155; color: #38bdf8; cursor: not-allowed; }
     </style>
@@ -29,7 +29,7 @@
                 <h1 class="text-2xl md:text-3xl font-bold text-sky-400 flex items-center gap-2">
                     <i data-lucide="target"></i> Rapsodo Pitching Dashboard
                 </h1>
-                <p class="text-slate-400 text-sm mt-1">放球點跨日期差異比較與速差共軌 (Tunneling) 智慧分析系統</p>
+                <p class="text-slate-400 text-sm mt-1">放球點跨日期彈性基準比較與速差共軌 (Tunneling) 智慧分析系統</p>
             </div>
             
             <div class="flex flex-wrap items-center gap-2">
@@ -115,12 +115,12 @@
             </div>
         </div>
 
-        <!-- 新增：各球種跨日期放球點差異比較表 -->
+        <!-- 跨日期球種放球點差異比較表（含基準自由指定與 ±5% 容許區間） -->
         <div class="card p-5 border border-purple-500/30">
             <h3 class="text-md font-semibold text-purple-400 mb-2 flex items-center gap-2">
-                <i data-lucide="git-compare"></i> 跨日期球種放球點差異對比表 (追蹤選手每次測試的手臂穩定度)
+                <i data-lucide="git-compare"></i> 跨日期球種放球點差異比較表 (教練可自由指定最佳基準測試)
             </h3>
-            <p class="text-xs text-slate-400 mb-4">協助教練快速比對選手在不同測試日（例如 7月 vs 9月）各種球種的放球高度與側向距離變化</p>
+            <p class="text-xs text-slate-400 mb-4">下拉選取該球種最佳的「基準測試日期」，系統會自動計算差值，並在 ±5% 誤差範圍內判定為容許範圍。</p>
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm text-slate-300">
                     <thead class="bg-slate-800 text-slate-400 uppercase text-xs">
@@ -129,10 +129,11 @@
                             <th class="p-2">球種</th>
                             <th class="p-2">用球數</th>
                             <th class="p-2">平均放球高度 (呎)</th>
-                            <th class="p-2">高度差異 (vs 上次)</th>
+                            <th class="p-2">高度差異 (vs 指定基準)</th>
                             <th class="p-2">平均側向距離 (呎)</th>
-                            <th class="p-2">側向差異 (vs 上次)</th>
-                            <th class="p-2">教練解讀建議</th>
+                            <th class="p-2">側向差異 (vs 指定基準)</th>
+                            <th class="p-2 text-center">設定為此球種基準</th>
+                            <th class="p-2">教練解讀建議 (±5% 判定)</th>
                         </tr>
                     </thead>
                     <tbody id="compareTableBody" class="divide-y divide-slate-700"></tbody>
@@ -235,6 +236,9 @@
     </script>
 
     <script>
+        // 全域變數：儲存各選手各球種教練指定的基準日期 { "選手名": { "球種": "YYYY-MM-DD" } }
+        window.baselineConfig = JSON.parse(localStorage.getItem('rapsodo_baselines')) || {};
+
         function migrateOldData() {
             ['v4', 'v3'].forEach(v => {
                 const oldRecs = localStorage.getItem(`rapsodo_records_${v}`);
@@ -261,9 +265,17 @@
         function saveDataLocally() {
             localStorage.setItem('rapsodo_athletes_permanent', JSON.stringify(window.athletes));
             localStorage.setItem('rapsodo_records_permanent', JSON.stringify(window.records));
+            localStorage.setItem('rapsodo_baselines', JSON.stringify(window.baselineConfig));
 
             if (window.rapsodoRecordsRef && window.set) window.set(window.rapsodoRecordsRef, window.records);
             if (window.rapsodoAthletesRef && window.set) window.set(window.rapsodoAthletesRef, window.athletes);
+        }
+
+        function setBaseline(athleteName, pType, date) {
+            if (!window.baselineConfig[athleteName]) window.baselineConfig[athleteName] = {};
+            window.baselineConfig[athleteName][pType] = date;
+            saveDataLocally();
+            updateDashboard();
         }
 
         function importCSV(e) {
@@ -488,13 +500,14 @@
                 });
             }
 
-            // ★ 新增：填入跨日期球種放球點差異比較表 ★
+            // ★ 跨日期球種放球點差異比較表（支援教練手動指定基準與 ±5% 容許區間判定） ★
             const compareTbody = document.getElementById('compareTableBody');
             if (compareTbody) {
                 compareTbody.innerHTML = '';
-                // 找出該選手所有球種與日期的交叉平均
                 const allPtypes = [...new Set(athAllRecords.map(r => r.pitchType))];
                 let comparisonRows = [];
+
+                if (!window.baselineConfig[ath]) window.baselineConfig[ath] = {};
 
                 allPtypes.forEach(pType => {
                     const pTypeRecords = athAllRecords.filter(r => r.pitchType === pType);
@@ -505,38 +518,58 @@
                     });
 
                     const sortedDates = Object.keys(dateGroup).sort();
-                    let prevHeight = null;
-                    let prevSide = null;
+                    if (sortedDates.length === 0) return;
+
+                    // 若尚未指定該球種基準，預設為第一個日期
+                    if (!window.baselineConfig[ath][pType] || !sortedDates.includes(window.baselineConfig[ath][pType])) {
+                        window.baselineConfig[ath][pType] = sortedDates[0];
+                    }
+                    const baselineDate = window.baselineConfig[ath][pType];
+
+                    // 計算基準日期的平均高度與側向
+                    const baseRecs = dateGroup[baselineDate] || [];
+                    const baseHeight = baseRecs.reduce((a,b)=>a+b.relHeight, 0) / (baseRecs.length || 1);
+                    const baseSide = baseRecs.reduce((a,b)=>a+b.relSide, 0) / (baseRecs.length || 1);
 
                     sortedDates.forEach(d => {
                         const recs = dateGroup[d];
                         const hAvg = recs.reduce((a,b)=>a+b.relHeight, 0) / recs.length;
                         const sAvg = recs.reduce((a,b)=>a+b.relSide, 0) / recs.length;
 
-                        let hDiffStr = '<span class="text-slate-500">基准測試</span>';
-                        let sDiffStr = '<span class="text-slate-500">基准測試</span>';
-                        let advice = '首次測試記錄';
+                        let hDiffStr = '<span class="text-sky-400 font-bold">🎯 基準測試日</span>';
+                        let sDiffStr = '<span class="text-sky-400 font-bold">🎯 基準測試日</span>';
+                        let advice = '此為當前指定基準';
 
-                        if (prevHeight !== null && prevSide !== null) {
-                            const hDiff = hAvg - prevHeight;
-                            const sDiff = sAvg - prevSide;
+                        if (d !== baselineDate) {
+                            const hDiff = hAvg - baseHeight;
+                            const sDiff = sAvg - baseSide;
 
-                            const hColor = Math.abs(hDiff) > 0.3 ? 'text-red-400 font-bold' : 'text-emerald-400';
-                            const sColor = Math.abs(sDiff) > 0.3 ? 'text-yellow-400 font-bold' : 'text-emerald-400';
+                            const hPct = baseHeight !== 0 ? (hDiff / baseHeight) * 100 : 0;
+                            const sPct = baseSide !== 0 ? (sDiff / baseSide) * 100 : 0;
 
-                            hDiffStr = `<span class="${hColor}">${hDiff > 0 ? '+' : ''}${hDiff.toFixed(2)} 呎</span>`;
-                            sDiffStr = `<span class="${sColor}">${sDiff > 0 ? '+' : ''}${sDiff.toFixed(2)} 呎</span>`;
+                            const isWithinTolerance = Math.abs(hPct) <= 5 && Math.abs(sPct) <= 5;
 
-                            if (Math.abs(hDiff) <= 0.15 && Math.abs(sDiff) <= 0.15) {
-                                advice = '🌟 放球點極度穩定，與上次一致！';
-                            } else if (hDiff < -0.2) {
-                                advice = '⚠️ 放球點比上次低（注意身體提早傾倒或開掉）';
-                            } else if (hDiff > 0.2) {
-                                advice = '⚠️ 放球點比上次高（注意是否過度施力或挺身）';
+                            const hColor = isWithinTolerance ? 'text-emerald-400' : 'text-red-400 font-bold';
+                            const sColor = isWithinTolerance ? 'text-emerald-400' : 'text-yellow-400 font-bold';
+
+                            hDiffStr = `<span class="${hColor}">${hDiff > 0 ? '+' : ''}${hDiff.toFixed(2)} 呎 (${hDiff > 0 ? '+' : ''}${hPct.toFixed(1)}%)</span>`;
+                            sDiffStr = `<span class="${sColor}">${sDiff > 0 ? '+' : ''}${sDiff.toFixed(2)} 呎 (${sDiff > 0 ? '+' : ''}${sPct.toFixed(1)}%)</span>`;
+
+                            if (isWithinTolerance) {
+                                advice = '✅ 容許誤差範圍內 (動作穩定)';
+                            } else if (hDiff < 0) {
+                                advice = '⚠️ 放球點低於基準超過 5% (注意提早開掉)';
                             } else {
-                                advice = '💡 側向放球點微調，可持續追蹤';
+                                advice = '⚠️ 放球點高於基準超過 5% (注意身體挺身或過度出力)';
                             }
                         }
+
+                        // 下拉選單供教練隨時切換基準
+                        let selectHtml = `<select onchange="setBaseline('${ath}', '${pType}', this.value)" class="bg-slate-800 text-sky-300 border border-slate-600 rounded px-2 py-1 text-xs font-semibold">`;
+                        sortedDates.forEach(sd => {
+                            selectHtml += `<option value="${sd}" ${sd === baselineDate ? 'selected' : ''}>${sd}</option>`;
+                        });
+                        selectHtml += `</select>`;
 
                         comparisonRows.push({
                             date: d,
@@ -546,20 +579,18 @@
                             hDiffStr: hDiffStr,
                             sAvg: sAvg.toFixed(2),
                             sDiffStr: sDiffStr,
-                            advice: advice
+                            selectHtml: selectHtml,
+                            advice: advice,
+                            isBase: d === baselineDate
                         });
-
-                        prevHeight = hAvg;
-                        prevSide = sAvg;
                     });
                 });
 
-                // 依照日期由新到舊排序顯示
                 comparisonRows.sort((a, b) => new Date(b.date) - new Date(a.date));
 
                 comparisonRows.forEach(row => {
                     compareTbody.innerHTML += `
-                        <tr class="hover:bg-slate-800/30">
+                        <tr class="hover:bg-slate-800/30 ${row.isBase ? 'bg-sky-950/20 border-l-4 border-sky-400' : ''}">
                             <td class="p-2 font-semibold text-white">${row.date}</td>
                             <td class="p-2"><span class="px-2 py-0.5 rounded text-xs font-bold" style="background:${getPitchColor(row.pType)}22; color:${getPitchColor(row.pType)}">${row.pType} ${getPitchTypeName(row.pType)}</span></td>
                             <td class="p-2 text-sky-300">${row.count} 球</td>
@@ -567,6 +598,7 @@
                             <td class="p-2 font-mono">${row.hDiffStr}</td>
                             <td class="p-2 font-mono">${row.sAvg} 呎</td>
                             <td class="p-2 font-mono">${row.sDiffStr}</td>
+                            <td class="p-2 text-center">${row.selectHtml}</td>
                             <td class="p-2 text-xs font-medium">${row.advice}</td>
                         </tr>
                     `;
