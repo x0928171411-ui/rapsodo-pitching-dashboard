@@ -83,7 +83,7 @@
             <div class="card p-3 bg-slate-800/50"><div class="text-slate-400 text-xs">出手穩定評價</div><div id="kpiEval" class="text-xs md:text-sm font-bold text-amber-300 mt-1 leading-tight">--</div></div>
         </div>
 
-        <!-- Charts Layout (位置已依需求調換) -->
+        <!-- Charts Layout -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- 1. 球速成長趨勢 -->
             <div class="card p-4 md:p-6">
@@ -91,18 +91,18 @@
                 <div id="speedChart" class="w-full h-[320px]"></div>
             </div>
             
-            <!-- 2. 各球種出手位置與高度一致性 (已調換至上方與共軌相鄰) -->
+            <!-- 2. 各球種出手位置與高度一致性 -->
             <div class="card p-4 md:p-6 bg-slate-900/90 border border-sky-500/30">
                 <div class="mb-2">
                     <h2 class="text-lg font-semibold flex items-center gap-2 text-sky-300">
                         <i data-lucide="user" class="text-sky-400"></i> 各球種出手位置與高度一致性 (投手背面視角)
                     </h2>
-                    <p class="text-xs text-slate-400 mt-1">觀察不同球種 (FB, CB, SL, SP) 是否從同一個手臂角度與出手點釋放</p>
+                    <p class="text-xs text-slate-400 mt-1">觀察不同球種是否從同一個手臂角度與出手點釋放</p>
                 </div>
                 <div id="releaseChart" class="w-full h-[320px]"></div>
             </div>
 
-            <!-- 3. 本壘板進壘點共軌區 (已調換至下方與出手點相鄰) -->
+            <!-- 3. 本壘板進壘點共軌區 (Tunneling) -->
             <div class="card p-4 md:p-6">
                 <div class="mb-2"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="crosshair" class="text-emerald-400"></i> 本壘板進壘點共軌區 (Tunneling)</h2><p class="text-xs text-slate-400 mt-1">比較不同球種進壘時的位置重疊度與欺敵效果</p></div>
                 <div id="tunnelChart" class="w-full h-[300px]"></div>
@@ -174,8 +174,9 @@
         const db = getDatabase(app);
 
         window.db = db;
-        window.rapsodoRecordsRef = ref(db, 'rapsodo_pitch_records_v4');
-        window.rapsodoAthletesRef = ref(db, 'rapsodo_pitch_athletes_v4');
+        // 使用永久固定的資料庫節點，確保以後更新程式碼資料也不會消失
+        window.rapsodoRecordsRef = ref(db, 'rapsodo_pitch_records_permanent');
+        window.rapsodoAthletesRef = ref(db, 'rapsodo_pitch_athletes_permanent');
         window.set = set;
 
         const syncEl = document.getElementById('syncStatus');
@@ -188,7 +189,7 @@
             const cloudData = snapshot.val();
             if (cloudData !== null) {
                 window.records = Array.isArray(cloudData) ? cloudData : Object.values(cloudData);
-                localStorage.setItem('rapsodo_records_v4', JSON.stringify(window.records));
+                localStorage.setItem('rapsodo_records_permanent', JSON.stringify(window.records));
             } else if (window.records && window.records.length > 0) {
                 set(window.rapsodoRecordsRef, window.records);
             }
@@ -200,7 +201,7 @@
             const cloudData = snapshot.val();
             if (cloudData !== null) {
                 window.athletes = cloudData;
-                localStorage.setItem('rapsodo_athletes_v4', JSON.stringify(window.athletes));
+                localStorage.setItem('rapsodo_athletes_permanent', JSON.stringify(window.athletes));
             } else if (Object.keys(window.athletes || {}).length > 0) {
                 set(window.rapsodoAthletesRef, window.athletes);
             }
@@ -210,8 +211,23 @@
     </script>
 
     <script>
-        window.athletes = JSON.parse(localStorage.getItem('rapsodo_athletes_v4')) || {};
-        window.records = JSON.parse(localStorage.getItem('rapsodo_records_v4')) || [];
+        // 自動遷移舊版本的資料（支援 v3, v4 自動搬移至 permanent）
+        function migrateOldData() {
+            ['v4', 'v3'].forEach(v => {
+                const oldRecs = localStorage.getItem(`rapsodo_records_${v}`);
+                const oldAth = localStorage.getItem(`rapsodo_athletes_${v}`);
+                if (oldRecs && (!localStorage.getItem('rapsodo_records_permanent') || JSON.parse(localStorage.getItem('rapsodo_records_permanent')).length === 0)) {
+                    localStorage.setItem('rapsodo_records_permanent', oldRecs);
+                }
+                if (oldAth && (!localStorage.getItem('rapsodo_athletes_permanent') || Object.keys(JSON.parse(localStorage.getItem('rapsodo_athletes_permanent'))).length === 0)) {
+                    localStorage.setItem('rapsodo_athletes_permanent', oldAth);
+                }
+            });
+        }
+        migrateOldData();
+
+        window.athletes = JSON.parse(localStorage.getItem('rapsodo_athletes_permanent')) || {};
+        window.records = JSON.parse(localStorage.getItem('rapsodo_records_permanent')) || [];
 
         document.addEventListener("DOMContentLoaded", () => {
             lucide.createIcons();
@@ -220,8 +236,8 @@
         });
 
         function saveDataLocally() {
-            localStorage.setItem('rapsodo_athletes_v4', JSON.stringify(window.athletes));
-            localStorage.setItem('rapsodo_records_v4', JSON.stringify(window.records));
+            localStorage.setItem('rapsodo_athletes_permanent', JSON.stringify(window.athletes));
+            localStorage.setItem('rapsodo_records_permanent', JSON.stringify(window.records));
 
             if (window.rapsodoRecordsRef && window.set) window.set(window.rapsodoRecordsRef, window.records);
             if (window.rapsodoAthletesRef && window.set) window.set(window.rapsodoAthletesRef, window.athletes);
@@ -282,7 +298,7 @@
                         count++;
                     });
                     
-                    alert(`成功匯入 ${count} 筆投球數據（雲端與本機同步完成）！`);
+                    alert(`成功匯入 ${count} 筆投球數據（永久雲端與本機同步完成）！`);
                     saveDataLocally();
                     updateDropdowns();
                     updateDashboard();
@@ -528,4 +544,28 @@
             if (!ath) return alert('請先匯入投手資料。');
             const profile = window.athletes[ath] || {};
             document.getElementById('athleteModalName').value = ath;
-            document.getElementById
+            document.getElementById('athleteModalGender').value = profile.gender || '男';
+            document.getElementById('athleteModalDOB').value = profile.dob || '';
+            document.getElementById('athleteModalHeight').value = profile.height || '';
+            document.getElementById('athleteModalWeight').value = profile.weight || '';
+            document.getElementById('athleteModal').classList.remove('hidden');
+        }
+
+        function closeAthleteModal() { document.getElementById('athleteModal').classList.add('hidden'); }
+
+        function handleAthleteSubmit(e) {
+            e.preventDefault();
+            const ath = document.getElementById('athleteModalName').value;
+            window.athletes[ath] = {
+                gender: document.getElementById('athleteModalGender').value,
+                dob: document.getElementById('athleteModalDOB').value,
+                height: parseFloat(document.getElementById('athleteModalHeight').value) || '',
+                weight: parseFloat(document.getElementById('athleteModalWeight').value) || ''
+            };
+            saveDataLocally();
+            closeAthleteModal();
+            updateDashboard();
+        }
+    </script>
+</body>
+</html>
