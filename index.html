@@ -29,7 +29,7 @@
                 <h1 class="text-2xl md:text-3xl font-bold text-sky-400 flex items-center gap-2">
                     <i data-lucide="target"></i> Rapsodo Pitching Dashboard
                 </h1>
-                <p class="text-slate-400 text-sm mt-1">右投手背影扇形揮臂對比與跨日期放球點智慧分析系統</p>
+                <p class="text-slate-400 text-sm mt-1">投手背影扇形揮臂對比與跨日期放球點智慧分析系統</p>
             </div>
             
             <div class="flex flex-wrap items-center gap-2">
@@ -91,14 +91,14 @@
                 <div id="speedChart" class="w-full h-[320px]"></div>
             </div>
             
-            <!-- 2. ★ 右手臂直接連接球點的背影扇形對比圖 ★ -->
+            <!-- 2. ★ 投手跨日期背影扇形揮臂對比（無角度計算版本） ★ -->
             <div class="card p-4 md:p-6 bg-slate-900/90 border border-sky-500/30">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
                     <div>
                         <h2 class="text-lg font-semibold flex items-center gap-2 text-sky-300">
-                            <i data-lucide="user" class="text-sky-400"></i> 右投手跨日期背影扇形揮臂對比 (教練與選手指導視角)
+                            <i data-lucide="user" class="text-sky-400"></i> 投手跨日期背影扇形揮臂對比 (教練與選手指導視角)
                         </h2>
-                        <p class="text-xs text-slate-400 mt-1">黑色標記為指定基準日，右手臂與球點直接連線呈現真實揮臂落差</p>
+                        <p class="text-xs text-slate-400 mt-1">黑色標記為指定基準日，手臂扇形線清楚呈現放球點與高度落差</p>
                     </div>
                     <!-- 圖表專屬球種選擇器 -->
                     <div class="flex items-center gap-1.5">
@@ -643,7 +643,7 @@
             const traceAvg = { x: dates, y: stats.map(s => s.avg), name: '均速', type: 'scatter', mode: 'lines+markers', line: { color: '#38bdf8', width: 3 } };
             Plotly.newPlot('speedChart', [traceMax, traceAvg], { ...commonLayout, yaxis: { title: 'MPH', gridcolor: '#334155' }, legend: { orientation: 'h', y: 1.2, x: 0 } }, { responsive: true, displayModeBar: false });
             
-            // 2. ★ 右手臂直接連接球點的背影扇形對比圖 ★
+            // 2. ★ 投手跨日期背影扇形揮臂對比（純視覺扇形對比，無角度計算） ★
             const athSelect = document.getElementById('athleteSelect');
             const currentAth = athSelect ? athSelect.value : '';
             const relPitchSelect = document.getElementById('releasePitchSelect');
@@ -657,7 +657,7 @@
             let connectingShapes = [];
             let dateIdx = 0;
 
-            // 右投手臂發力點（右肩膀關節固定在 X=0.9, Y=4.6）
+            // 右肩發力點固定支點 (X=0.9, Y=4.6)
             const shoulderX = 0.9;
             const shoulderY = 4.6;
 
@@ -669,20 +669,14 @@
 
                 const rawSideAvg = dateRecs.reduce((a,b)=>a+b.relSide, 0) / dateRecs.length;
                 const avgHeight = dateRecs.reduce((a,b)=>a+b.relHeight, 0) / dateRecs.length;
-                const avgSide = 0.8 + (rawSideAvg * 0.15); // 投球點側向座標
-
-                // 計算手臂夾角
-                const dx = avgSide - shoulderX;
-                const dy = avgHeight - shoulderY;
-                const angleRad = Math.atan2(dy, dx);
-                const angleDeg = Math.round(angleRad * (180 / Math.PI));
+                const avgSide = 0.8 + (rawSideAvg * 0.15);
 
                 const isBaselineDay = Object.entries(athleteBaselines).some(([pt, bDate]) => bDate === d && activePitchTypes.includes(pt));
 
                 let markerColor = dateColors[dateIdx % dateColors.length];
                 let markerSize = 16;
                 let markerBorder = { color: '#ffffff', width: 2 };
-                let legendName = `${d} (${angleDeg}°, ${avgHeight.toFixed(2)}呎)`;
+                let legendName = `${d} (${avgHeight.toFixed(2)}呎)`;
                 let lineColor = markerColor;
                 let lineWidth = 5;
 
@@ -690,12 +684,12 @@
                     markerColor = '#000000'; // 基準用黑色標記
                     markerSize = 22;
                     markerBorder = { color: '#38bdf8', width: 3 }; // 亮藍外框
-                    legendName = `🎯 基準日: ${d} (${angleDeg}°, ${avgHeight.toFixed(2)}呎)`;
+                    legendName = `🎯 基準日: ${d} (${avgHeight.toFixed(2)}呎)`;
                     lineColor = '#38bdf8'; // 基準用亮藍色扇形線
                     lineWidth = 7;
                 }
 
-                // ★ 右手臂直接從肩膀連線到球點 ★
+                // 手臂直接連接球點
                 connectingShapes.push({
                     type: 'line',
                     x0: shoulderX, y0: shoulderY,
@@ -708,17 +702,17 @@
                     y: [avgHeight],
                     name: legendName,
                     mode: 'markers+text',
-                    text: [` ${angleDeg}° (${avgHeight.toFixed(2)}呎)`],
+                    text: [` ${avgHeight.toFixed(2)}呎`],
                     textposition: 'top right',
                     textfont: { size: 12, color: isBaselineDay ? '#38bdf8' : '#ffffff', family: 'sans-serif' },
                     marker: { size: markerSize, color: markerColor, line: markerBorder },
-                    hovertemplate: `日期: ${d}<br>手臂夾角: ${angleDeg}°<br>放球高度: ${avgHeight.toFixed(2)} 呎<extra></extra>`
+                    hovertemplate: `日期: ${d}<br>放球高度: ${avgHeight.toFixed(2)} 呎<br>側向距離: ${avgSide.toFixed(2)} 呎<extra></extra>`
                 });
 
                 dateIdx++;
             });
 
-            // 右投手背影骨架（右肩精準對齊發力點 X=0.9）
+            // 投手背影骨架
             const pitcherBodyShapes = [
                 ...connectingShapes,
                 { type: 'circle', x0: 0.35, x1: 0.65, y0: 5.2, y1: 5.7, fillcolor: 'rgba(56, 189, 248, 0.25)', line: { color: '#38bdf8', width: 2 } }, // 頭部
@@ -771,7 +765,7 @@
             document.getElementById('athleteModalDOB').value = profile.dob || '';
             document.getElementById('athleteModalHeight').value = profile.height || '';
             document.getElementById('athleteModalWeight').value = profile.weight || '';
-            document.getElementById('athleteModal').classList.add('hidden');
+            document.getElementById('athleteModal').classList.remove('hidden');
         }
 
         function closeAthleteModal() { document.getElementById('athleteModal').classList.add('hidden'); }
