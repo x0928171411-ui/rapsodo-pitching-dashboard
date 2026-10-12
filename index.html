@@ -433,8 +433,9 @@
                         const rawRelS = getCol(row, ['RelSide (Feet)', 'RelSide (ft)', 'RelSide']);
                         const relSide = rawRelS !== null ? parseFloat(rawRelS) : null;
 
+                        // ★ 關鍵校正：將進壘點橫向座標 px 乘上 -1，使其與捕手視角右打者站位方向正確對應 ★
                         const rawPX = getCol(row, ['PlateLocSide (Inches)', 'PlateLocSide']);
-                        const px = rawPX !== null ? parseFloat(rawPX) : null;
+                        const px = rawPX !== null ? -parseFloat(rawPX) : null;
 
                         const rawPZ = getCol(row, ['PlateLocHeight (Inches)', 'PlateLocHeight']);
                         const pz = rawPZ !== null ? parseFloat(rawPZ) : null;
@@ -641,7 +642,7 @@
                 ]
             }, { responsive: true, displayModeBar: false });
 
-            // 2. ★ 捕手視角進壘點與標準 180cm/90kg 右打者參照系 (左側站位) ★
+            // 2. 捕手視角進壘點與標準 180cm/90kg 右打者參照系
             const zoneTraces = [];
             const validPlateData = data.filter(d => d.px !== null && d.pz !== null);
             const strikeCount = validPlateData.filter(d => d.isStrike).length;
@@ -666,7 +667,7 @@
                 });
             });
 
-            // 右打者站在捕手視角的左側（正 X 軸區域：約 9 吋至 26 吋，高度 16 吋至 48 吋）
+            // 右打者剪影與好球帶、本壘板相對位置
             const rightBatterShapes = [
                 // 好球帶 (紅框)
                 { type: 'rect', xref: 'x', yref: 'y', x0: -8.5, y0: 18, x1: 8.5, y1: 42, line: { color: '#f43f5e', width: 2.5 } },
@@ -689,7 +690,6 @@
 
             Plotly.newPlot('zonePlot', zoneTraces, {
                 ...darkLayout,
-                // 正確對應：捕手視角下，右打者站在畫面左側 (Positive X)，X 軸由右至左遞增 (-28 到 28)
                 xaxis: { title: '本壘板橫向位置 (Inches - 捕手視角)', range: [28, -28], zerolinecolor: '#334155', gridcolor: '#1e293b' },
                 yaxis: { title: '離地高度 (Inches)', range: [0, 55], zerolinecolor: '#334155', gridcolor: '#1e293b' },
                 shapes: rightBatterShapes,
@@ -814,84 +814,4 @@
             titleEl.textContent = `【${dateLabel}】${ptLabel} 逐球詳細投球明細列表 (Pitch Log)`;
             badgeEl.textContent = `共 ${records.length} 球`;
 
-            if (records.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="10" class="p-4 text-center text-slate-500">此篩選條件下無投球紀錄</td></tr>`;
-                return;
-            }
-
-            const sorted = [...records].sort((a, b) => {
-                if (a.pitchNum && b.pitchNum) return b.pitchNum - a.pitchNum;
-                return (b.time || '').localeCompare(a.time || '');
-            });
-
-            sorted.forEach(r => {
-                const badgeColor = PITCH_COLORS[r.pitchType] || '#94a3b8';
-                const strikeBadge = r.isStrike 
-                    ? `<span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-700/60 font-sans font-semibold">Strike</span>` 
-                    : `<span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400 border border-slate-700 font-sans">Ball</span>`;
-
-                tbody.innerHTML += `
-                    <tr class="hover:bg-slate-800/50 transition">
-                        <td class="p-2.5 text-slate-300 font-bold">#${r.pitchNum || '--'}</td>
-                        <td class="p-2.5 text-slate-400 text-[11px]">${r.date} ${r.time}</td>
-                        <td class="p-2.5 font-bold flex items-center gap-1.5 font-sans">
-                            <span class="w-2 h-2 rounded-full" style="background-color: ${badgeColor}"></span>
-                            <span class="text-white">${r.pitchType}</span>
-                        </td>
-                        <td class="p-2.5 text-emerald-400 font-bold text-sm">${r.speed.toFixed(1)}</td>
-                        <td class="p-2.5 text-indigo-300">${r.spin ? Math.round(r.spin) : '--'}</td>
-                        <td class="p-2.5 text-teal-300">${r.spinEff !== null ? r.spinEff.toFixed(0) + '%' : '--'}</td>
-                        <td class="p-2.5 text-cyan-300">${r.ivb !== null ? (r.ivb > 0 ? '+' : '') + r.ivb.toFixed(1) + '"' : '--'}</td>
-                        <td class="p-2.5 text-sky-300">${r.hb !== null ? (r.hb > 0 ? '+' : '') + r.hb.toFixed(1) + '"' : '--'}</td>
-                        <td class="p-2.5 text-amber-300">${r.relHeight !== null ? r.relHeight.toFixed(2) + ' ft' : '--'}</td>
-                        <td class="p-2.5">${strikeBadge}</td>
-                    </tr>
-                `;
-            });
-        }
-
-        function exportProcessedData() {
-            const ath = document.getElementById('athleteSelect').value;
-            if (!ath) return alert('目前尚無資料可匯出');
-            const data = window.records.filter(r => r.name === ath);
-            const csv = Papa.unparse(data);
-            const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", `${ath}_Rapsodo_Analytics.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        function openAthleteModal() {
-            const ath = document.getElementById('athleteSelect').value;
-            if (!ath) return alert('請先選擇選手');
-            const p = window.athletes[ath] || {};
-            document.getElementById('modalName').value = ath;
-            document.getElementById('modalGender').value = p.gender || '男';
-            document.getElementById('modalHand').value = p.hand || 'R';
-            document.getElementById('modalHeight').value = p.height || '';
-            document.getElementById('modalWeight').value = p.weight || '';
-            document.getElementById('athleteModal').classList.remove('hidden');
-        }
-
-        function closeAthleteModal() { document.getElementById('athleteModal').classList.add('hidden'); }
-
-        function handleAthleteSubmit(e) {
-            e.preventDefault();
-            const ath = document.getElementById('modalName').value;
-            window.athletes[ath] = {
-                gender: document.getElementById('modalGender').value,
-                hand: document.getElementById('modalHand').value,
-                height: parseFloat(document.getElementById('modalHeight').value) || '',
-                weight: parseFloat(document.getElementById('modalWeight').value) || ''
-            };
-            saveData();
-            closeAthleteModal();
-            updateDashboard();
-        }
-    </script>
-</body>
-</html>
+            if (records.length === 0
