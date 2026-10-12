@@ -768,4 +768,153 @@
 
             const groups = {};
             records.forEach(r => {
-                if (!groups[r.pitchType]) groups
+                if (!groups[r.pitchType]) groups[r.pitchType] = [];
+                groups[r.pitchType].push(r);
+            });
+
+            const total = records.length;
+            Object.keys(groups).sort((a,b) => groups[b].length - groups[a].length).forEach(pt => {
+                const list = groups[pt];
+                const count = list.length;
+                const speeds = list.map(l => l.speed);
+                const max = Math.max(...speeds).toFixed(1);
+                const avg = (speeds.reduce((a,b)=>a+b, 0) / count).toFixed(1);
+                
+                let sd = '--';
+                if (count > 1) {
+                    const variance = speeds.reduce((acc, v) => acc + Math.pow(v - avg, 2), 0) / (count - 1);
+                    sd = Math.sqrt(variance).toFixed(2);
+                }
+
+                const spins = list.filter(l => l.spin > 0).map(l => l.spin);
+                const avgSpin = spins.length ? Math.round(spins.reduce((a,b)=>a+b, 0) / spins.length) : '--';
+
+                const effs = list.filter(l => l.spinEff !== null && l.spinEff >= 0).map(l => l.spinEff);
+                const avgEff = effs.length ? (effs.reduce((a,b)=>a+b, 0) / effs.length).toFixed(1) + '%' : '--';
+
+                const ivbs = list.filter(l => l.ivb !== null).map(l => l.ivb);
+                const avgIVB = ivbs.length ? (ivbs.reduce((a,b)=>a+b, 0) / ivbs.length).toFixed(1) + '"' : '--';
+
+                const hbs = list.filter(l => l.hb !== null).map(l => l.hb);
+                const avgHB = hbs.length ? (hbs.reduce((a,b)=>a+b, 0) / hbs.length).toFixed(1) + '"' : '--';
+
+                const strikes = list.filter(l => l.isStrike).length;
+                const strikePct = list.length ? ((strikes / list.length) * 100).toFixed(0) + '%' : '--';
+
+                const badgeColor = PITCH_COLORS[pt] || '#94a3b8';
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="p-2.5 font-bold flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${badgeColor}"></span>
+                            ${pt} <span class="text-[11px] text-slate-400">(${getPitchName(pt)})</span>
+                        </td>
+                        <td class="p-2.5 font-semibold text-slate-200">${count} <span class="text-[11px] text-slate-400">(${((count/total)*100).toFixed(1)}%)</span></td>
+                        <td class="p-2.5 text-emerald-400 font-bold">${avg} <span class="text-xs text-slate-400 font-normal">(${max})</span></td>
+                        <td class="p-2.5 text-purple-300 font-medium">±${sd}</td>
+                        <td class="p-2.5 text-indigo-300">${avgSpin}</td>
+                        <td class="p-2.5 text-teal-300">${avgEff}</td>
+                        <td class="p-2.5 text-cyan-300">${avgIVB}</td>
+                        <td class="p-2.5 text-sky-300">${avgHB}</td>
+                        <td class="p-2.5 text-rose-300 font-semibold">${strikePct}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderPitchLogTable(records, selectedDate, selectedPitchType) {
+            const tbody = document.getElementById('pitchLogTableBody');
+            const titleEl = document.getElementById('pitchListHeaderTitle');
+            const badgeEl = document.getElementById('pitchListCountBadge');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const dateLabel = selectedDate === 'ALL' ? '全部訓練日' : selectedDate;
+            const ptLabel = selectedPitchType === 'ALL' ? '全部球種' : selectedPitchType;
+            if (titleEl) titleEl.textContent = `【${dateLabel}】${ptLabel} 逐球詳細投球明細列表 (Pitch Log)`;
+            if (badgeEl) badgeEl.textContent = `共 ${records.length} 球`;
+
+            if (records.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" class="p-4 text-center text-slate-500">此篩選條件下無投球紀錄</td></tr>`;
+                return;
+            }
+
+            const sorted = [...records].sort((a, b) => {
+                if (a.pitchNum && b.pitchNum) return b.pitchNum - a.pitchNum;
+                return (b.time || '').localeCompare(a.time || '');
+            });
+
+            sorted.forEach(r => {
+                const badgeColor = PITCH_COLORS[r.pitchType] || '#94a3b8';
+                const strikeBadge = r.isStrike 
+                    ? `<span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-700/60 font-sans font-semibold">Strike</span>` 
+                    : `<span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400 border border-slate-700 font-sans">Ball</span>`;
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-800/50 transition">
+                        <td class="p-2.5 text-slate-300 font-bold">#${r.pitchNum || '--'}</td>
+                        <td class="p-2.5 text-slate-400 text-[11px]">${r.date} ${r.time}</td>
+                        <td class="p-2.5 font-bold flex items-center gap-1.5 font-sans">
+                            <span class="w-2 h-2 rounded-full" style="background-color: ${badgeColor}"></span>
+                            <span class="text-white">${r.pitchType}</span>
+                        </td>
+                        <td class="p-2.5 text-emerald-400 font-bold text-sm">${r.speed.toFixed(1)}</td>
+                        <td class="p-2.5 text-indigo-300">${r.spin ? Math.round(r.spin) : '--'}</td>
+                        <td class="p-2.5 text-teal-300">${r.spinEff !== null ? r.spinEff.toFixed(0) + '%' : '--'}</td>
+                        <td class="p-2.5 text-cyan-300">${r.ivb !== null ? (r.ivb > 0 ? '+' : '') + r.ivb.toFixed(1) + '"' : '--'}</td>
+                        <td class="p-2.5 text-sky-300">${r.hb !== null ? (r.hb > 0 ? '+' : '') + r.hb.toFixed(1) + '"' : '--'}</td>
+                        <td class="p-2.5 text-amber-300">${r.relHeight !== null ? r.relHeight.toFixed(2) + ' ft' : '--'}</td>
+                        <td class="p-2.5">${strikeBadge}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function exportProcessedData() {
+            const ath = document.getElementById('athleteSelect').value;
+            if (!ath) return alert('目前尚無資料可匯出');
+            const data = (window.records || []).filter(r => r.name === ath);
+            const csv = Papa.unparse(data);
+            const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `${ath}_Rapsodo_Analytics.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        window.openAthleteModal = function() {
+            const ath = document.getElementById('athleteSelect').value;
+            if (!ath) return alert('請先選擇選手');
+            const p = (window.athletes || {})[ath] || {};
+            document.getElementById('modalName').value = ath;
+            document.getElementById('modalGender').value = p.gender || '男';
+            document.getElementById('modalHand').value = p.hand || 'R';
+            document.getElementById('modalHeight').value = p.height || '';
+            document.getElementById('modalWeight').value = p.weight || '';
+            document.getElementById('athleteModal').classList.remove('hidden');
+        }
+
+        window.closeAthleteModal = function() {
+            document.getElementById('athleteModal').classList.add('hidden');
+        }
+
+        window.handleAthleteSubmit = function(e) {
+            e.preventDefault();
+            const ath = document.getElementById('modalName').value;
+            if (!window.athletes) window.athletes = {};
+            window.athletes[ath] = {
+                gender: document.getElementById('modalGender').value,
+                hand: document.getElementById('modalHand').value,
+                height: parseFloat(document.getElementById('modalHeight').value) || '',
+                weight: parseFloat(document.getElementById('modalWeight').value) || ''
+            };
+            saveData();
+            closeAthleteModal();
+            updateDashboard();
+        }
+    </script>
+</body>
+</html>
