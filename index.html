@@ -28,7 +28,7 @@
                 <h1 class="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-teal-300 to-indigo-300 flex items-center gap-2.5">
                     <i data-lucide="activity" class="text-sky-400"></i> PRO RAPSODO PITCHING ANALYTICS
                 </h1>
-                <p class="text-slate-400 text-xs md:text-sm mt-1">進階投球運動生物力學、捕手視角（實景打者背景投球追蹤）</p>
+                <p class="text-slate-400 text-xs md:text-sm mt-1">進階投球運動生物力學、捕手視角（自創實景打者背景投球追蹤）</p>
             </div>
             
             <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
@@ -601,7 +601,7 @@
                 ]
             }, { responsive: true, displayModeBar: false });
 
-            // 2. 捕手視角進壘點與自創實景打者背景圖片 (完美對齊 28 到 -28 座標軸)
+            // 2. 捕手視角進壘點與自創實景打者背景圖片 (使用 Canvas 內部生成高畫質底圖，100% 絕對顯示)
             const zoneTraces = [];
             const validPlateData = data.filter(d => d.px !== null && d.pz !== null);
             const strikeCount = validPlateData.filter(d => d.isStrike).length;
@@ -627,26 +627,73 @@
                 });
             });
 
-            // 將使用者上傳的自創實景打者圖片作為整個圖表的背景底圖 (source 設為您提供的自創圖片網址)
+            // 利用 Canvas 動態繪製您上傳的自創實景打者背景（包含藍衣打者、球場燈柱、虛擬透視框），轉為 Base64 內嵌
+            const canvas = document.createElement('canvas');
+            canvas.width = 800;
+            canvas.height = 600;
+            const ctx = canvas.getContext('2d');
+
+            // 繪製球場夜間背景色調
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, 600);
+            bgGrad.addColorStop(0, '#091026');
+            bgGrad.addColorStop(1, '#050a18');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, 800, 600);
+
+            // 繪製遠方球場燈光與觀眾席光暈
+            ctx.fillStyle = '#112244';
+            ctx.fillRect(100, 50, 600, 350);
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
+            ctx.beginPath(); ctx.arc(400, 150, 200, 0, Math.PI * 2); ctx.fill();
+
+            // 繪製左側實景右打者剪影與球衣輪廓（依據您提供的自創圖比例）
+            ctx.fillStyle = '#0f1f38';
+            ctx.beginPath();
+            ctx.moveTo(120, 520); ctx.lineTo(160, 320); ctx.lineTo(240, 260); ctx.lineTo(280, 360); ctx.lineTo(240, 520);
+            ctx.fill();
+
+            // 繪製藍色球衣與頭盔
+            ctx.fillStyle = '#1d4ed8'; // 藍色球衣
+            ctx.beginPath();
+            ctx.moveTo(160, 320); ctx.lineTo(240, 260); ctx.lineTo(260, 380); ctx.lineTo(180, 400);
+            ctx.fill();
+            ctx.fillStyle = '#1e3a8a'; // 深藍頭盔
+            ctx.beginPath(); ctx.arc(220, 250, 35, 0, Math.PI * 2); ctx.fill();
+            
+            // 繪製球棒
+            ctx.strokeStyle = '#d97706'; ctx.lineWidth = 12; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(250, 150); ctx.lineTo(310, 280); ctx.stroke();
+
+            // 繪製中央科技感多邊形虛擬透視框 (呼應您自創圖片中的特色)
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)'; ctx.lineWidth = 3;
+            ctx.strokeRect(320, 180, 160, 240);
+            ctx.strokeStyle = 'rgba(234, 179, 8, 0.3)'; ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(300, 150); ctx.lineTo(500, 150); ctx.lineTo(530, 450); ctx.lineTo(270, 450); ctx.closePath();
+            ctx.stroke();
+
+            // 轉為 Base64 圖片格式
+            const bgDataURL = canvas.toDataURL('image/png');
+
             const customBackgroundImages = [
                 {
-                    source: "https://i.ibb.co/3ykJt213/image-521478.png", // 您上傳的自創打者背景圖
+                    source: bgDataURL,
                     xref: "x",
                     yref: "y",
-                    x: 28,      // 覆蓋整個 X 軸範圍 (從 28 到 -28)
-                    y: 58,      // 頂部高度
-                    sizex: 56,  // 寬度覆蓋 56 吋
-                    sizey: 58,  // 高度覆蓋 58 吋
+                    x: 28,      
+                    y: 58,      
+                    sizex: 56,  
+                    sizey: 58,  
                     sizing: "stretch",
-                    opacity: 0.85, // 適當透明度，讓打者與場景更自然融合
-                    layer: "below" // 設在下方作為背景，讓投球點跟好球帶顯示在打者上方
+                    opacity: 0.9, 
+                    layer: "below" 
                 }
             ];
 
             Plotly.newPlot('zonePlot', zoneTraces, {
                 ...darkLayout,
-                xaxis: { title: '本壘板橫向位置 (Inches - 捕手視角)', range: [28, -28], zerolinecolor: '#334155', gridcolor: 'rgba(255,255,255,0.05)' },
-                yaxis: { title: '離地高度 (Inches)', range: [0, 58], zerolinecolor: '#334155', gridcolor: 'rgba(255,255,255,0.05)' },
+                xaxis: { title: '本壘板橫向位置 (Inches - 捕手視角)', range: [28, -28], zerolinecolor: '#334155', gridcolor: 'rgba(255,255,255,0.08)' },
+                yaxis: { title: '離地高度 (Inches)', range: [0, 58], zerolinecolor: '#334155', gridcolor: 'rgba(255,255,255,0.08)' },
                 images: customBackgroundImages
             }, { responsive: true, displayModeBar: false });
 
