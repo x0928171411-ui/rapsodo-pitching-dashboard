@@ -29,7 +29,7 @@
                 <h1 class="text-2xl md:text-3xl font-bold text-sky-400 flex items-center gap-2">
                     <i data-lucide="target"></i> Rapsodo Pitching Dashboard
                 </h1>
-                <p class="text-slate-400 text-sm mt-1">放球點高度穩定度 (Release Point) 與速差共軌 (Tunneling) 智慧分析系統</p>
+                <p class="text-slate-400 text-sm mt-1">放球點跨日期差異比較與速差共軌 (Tunneling) 智慧分析系統</p>
             </div>
             
             <div class="flex flex-wrap items-center gap-2">
@@ -115,9 +115,34 @@
             </div>
         </div>
 
+        <!-- 新增：各球種跨日期放球點差異比較表 -->
+        <div class="card p-5 border border-purple-500/30">
+            <h3 class="text-md font-semibold text-purple-400 mb-2 flex items-center gap-2">
+                <i data-lucide="git-compare"></i> 跨日期球種放球點差異對比表 (追蹤選手每次測試的手臂穩定度)
+            </h3>
+            <p class="text-xs text-slate-400 mb-4">協助教練快速比對選手在不同測試日（例如 7月 vs 9月）各種球種的放球高度與側向距離變化</p>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="bg-slate-800 text-slate-400 uppercase text-xs">
+                        <tr>
+                            <th class="p-2">測試日期</th>
+                            <th class="p-2">球種</th>
+                            <th class="p-2">用球數</th>
+                            <th class="p-2">平均放球高度 (呎)</th>
+                            <th class="p-2">高度差異 (vs 上次)</th>
+                            <th class="p-2">平均側向距離 (呎)</th>
+                            <th class="p-2">側向差異 (vs 上次)</th>
+                            <th class="p-2">教練解讀建議</th>
+                        </tr>
+                    </thead>
+                    <tbody id="compareTableBody" class="divide-y divide-slate-700"></tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- History Table -->
         <div class="card p-5">
-            <h3 class="text-md font-semibold text-sky-400 mb-4 flex items-center gap-2"><i data-lucide="database"></i> 詳細歷史數據彙整表</h3>
+            <h3 class="text-md font-semibold text-sky-400 mb-4 flex items-center gap-2"><i data-lucide="database"></i> 詳細單場投球數據彙整表</h3>
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm text-slate-300">
                     <thead class="bg-slate-800 text-slate-400 uppercase text-xs">
@@ -174,7 +199,6 @@
         const db = getDatabase(app);
 
         window.db = db;
-        // 使用永久固定的資料庫節點，確保以後更新程式碼資料也不會消失
         window.rapsodoRecordsRef = ref(db, 'rapsodo_pitch_records_permanent');
         window.rapsodoAthletesRef = ref(db, 'rapsodo_pitch_athletes_permanent');
         window.set = set;
@@ -211,7 +235,6 @@
     </script>
 
     <script>
-        // 自動遷移舊版本的資料（支援 v3, v4 自動搬移至 permanent）
         function migrateOldData() {
             ['v4', 'v3'].forEach(v => {
                 const oldRecs = localStorage.getItem(`rapsodo_records_${v}`);
@@ -419,13 +442,14 @@
                 const avgVert = items.reduce((a,b)=>a+b.vertBreak,0) / count;
                 const avgHorz = items.reduce((a,b)=>a+b.horzBreak,0) / count;
                 const avgRelHeight = items.reduce((a,b)=>a+b.relHeight,0) / count;
+                const avgRelSide = items.reduce((a,b)=>a+b.relSide,0) / count;
                 
                 let sd = 0;
                 if (count > 1) {
                     const variance = speeds.reduce((acc, val) => acc + Math.pow(val - avg, 2), 0) / (count - 1);
                     sd = Math.sqrt(variance);
                 }
-                return { date, count, max, avg, sd, avgSpin, avgVert, avgHorz, avgRelHeight, items };
+                return { date, count, max, avg, sd, avgSpin, avgVert, avgHorz, avgRelHeight, avgRelSide, items };
             });
             
             if (dailyStats.length > 0) {
@@ -442,6 +466,7 @@
                 evalEl.className = `text-xs md:text-sm font-bold mt-1 leading-tight ${getStabilityColor(latest.sd, latest.count)}`;
             }
             
+            // 填入單場歷史明細表
             const tbody = document.getElementById('dataTableBody');
             if (tbody) {
                 tbody.innerHTML = '';
@@ -462,6 +487,91 @@
                     `;
                 });
             }
+
+            // ★ 新增：填入跨日期球種放球點差異比較表 ★
+            const compareTbody = document.getElementById('compareTableBody');
+            if (compareTbody) {
+                compareTbody.innerHTML = '';
+                // 找出該選手所有球種與日期的交叉平均
+                const allPtypes = [...new Set(athAllRecords.map(r => r.pitchType))];
+                let comparisonRows = [];
+
+                allPtypes.forEach(pType => {
+                    const pTypeRecords = athAllRecords.filter(r => r.pitchType === pType);
+                    const dateGroup = {};
+                    pTypeRecords.forEach(r => {
+                        if (!dateGroup[r.date]) dateGroup[r.date] = [];
+                        dateGroup[r.date].push(r);
+                    });
+
+                    const sortedDates = Object.keys(dateGroup).sort();
+                    let prevHeight = null;
+                    let prevSide = null;
+
+                    sortedDates.forEach(d => {
+                        const recs = dateGroup[d];
+                        const hAvg = recs.reduce((a,b)=>a+b.relHeight, 0) / recs.length;
+                        const sAvg = recs.reduce((a,b)=>a+b.relSide, 0) / recs.length;
+
+                        let hDiffStr = '<span class="text-slate-500">基准測試</span>';
+                        let sDiffStr = '<span class="text-slate-500">基准測試</span>';
+                        let advice = '首次測試記錄';
+
+                        if (prevHeight !== null && prevSide !== null) {
+                            const hDiff = hAvg - prevHeight;
+                            const sDiff = sAvg - prevSide;
+
+                            const hColor = Math.abs(hDiff) > 0.3 ? 'text-red-400 font-bold' : 'text-emerald-400';
+                            const sColor = Math.abs(sDiff) > 0.3 ? 'text-yellow-400 font-bold' : 'text-emerald-400';
+
+                            hDiffStr = `<span class="${hColor}">${hDiff > 0 ? '+' : ''}${hDiff.toFixed(2)} 呎</span>`;
+                            sDiffStr = `<span class="${sColor}">${sDiff > 0 ? '+' : ''}${sDiff.toFixed(2)} 呎</span>`;
+
+                            if (Math.abs(hDiff) <= 0.15 && Math.abs(sDiff) <= 0.15) {
+                                advice = '🌟 放球點極度穩定，與上次一致！';
+                            } else if (hDiff < -0.2) {
+                                advice = '⚠️ 放球點比上次低（注意身體提早傾倒或開掉）';
+                            } else if (hDiff > 0.2) {
+                                advice = '⚠️ 放球點比上次高（注意是否過度施力或挺身）';
+                            } else {
+                                advice = '💡 側向放球點微調，可持續追蹤';
+                            }
+                        }
+
+                        comparisonRows.push({
+                            date: d,
+                            pType: pType,
+                            count: recs.length,
+                            hAvg: hAvg.toFixed(2),
+                            hDiffStr: hDiffStr,
+                            sAvg: sAvg.toFixed(2),
+                            sDiffStr: sDiffStr,
+                            advice: advice
+                        });
+
+                        prevHeight = hAvg;
+                        prevSide = sAvg;
+                    });
+                });
+
+                // 依照日期由新到舊排序顯示
+                comparisonRows.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                comparisonRows.forEach(row => {
+                    compareTbody.innerHTML += `
+                        <tr class="hover:bg-slate-800/30">
+                            <td class="p-2 font-semibold text-white">${row.date}</td>
+                            <td class="p-2"><span class="px-2 py-0.5 rounded text-xs font-bold" style="background:${getPitchColor(row.pType)}22; color:${getPitchColor(row.pType)}">${row.pType} ${getPitchTypeName(row.pType)}</span></td>
+                            <td class="p-2 text-sky-300">${row.count} 球</td>
+                            <td class="p-2 font-mono">${row.hAvg} 呎</td>
+                            <td class="p-2 font-mono">${row.hDiffStr}</td>
+                            <td class="p-2 font-mono">${row.sAvg} 呎</td>
+                            <td class="p-2 font-mono">${row.sDiffStr}</td>
+                            <td class="p-2 text-xs font-medium">${row.advice}</td>
+                        </tr>
+                    `;
+                });
+            }
             
             renderCharts(dailyStats, filtered, athAllRecords);
         }
@@ -473,12 +583,10 @@
                 margin: { t: 10, r: 20, l: 40, b: 40 }, xaxis: { gridcolor: '#334155' }, yaxis: { gridcolor: '#334155' }
             };
             
-            // 1. 速差圖
             const traceMax = { x: dates, y: stats.map(s => s.max), name: '極速', type: 'scatter', mode: 'lines+markers', line: { color: '#34d399', width: 2, dash: 'dot' } };
             const traceAvg = { x: dates, y: stats.map(s => s.avg), name: '均速', type: 'scatter', mode: 'lines+markers', line: { color: '#38bdf8', width: 3 } };
             Plotly.newPlot('speedChart', [traceMax, traceAvg], { ...commonLayout, yaxis: { title: 'MPH', gridcolor: '#334155' }, legend: { orientation: 'h', y: 1.2, x: 0 } }, { responsive: true, displayModeBar: false });
             
-            // 2. 放球點一致性 (投手背面視角)
             const pitchTypes = [...new Set(allAthRecords.map(r => r.pitchType))];
             const releaseTraces = pitchTypes.map(pt => {
                 const ptData = allAthRecords.filter(r => r.pitchType === pt);
@@ -513,7 +621,6 @@
                 legend: { orientation: 'h', y: -0.2, x: 0 }
             }, { responsive: true, displayModeBar: false });
             
-            // 3. 本壘板進壘點共軌區 (Tunneling)
             const tunnelTraces = pitchTypes.map(pt => {
                 const ptData = allAthRecords.filter(r => r.pitchType === pt);
                 return {
@@ -534,7 +641,6 @@
                 legend: { orientation: 'h', y: 1.2, x: 0 }
             }, { responsive: true, displayModeBar: false });
 
-            // 4. 尾勁變化量分析 (Movement)
             const traceMove = { x: stats.map(s => s.avgHorz), y: stats.map(s => s.avgVert), text: dates, mode: 'text+markers+lines', marker: { size: 10, color: '#f59e0b' } };
             Plotly.newPlot('movementChart', [traceMove], { ...commonLayout, xaxis: { title: '水平變化 Horz Break (Inches)' }, yaxis: { title: '垂直變化 Induced Vert Break (Inches)' } }, { responsive: true, displayModeBar: false });
         }
