@@ -29,7 +29,7 @@
                 <h1 class="text-2xl md:text-3xl font-bold text-sky-400 flex items-center gap-2">
                     <i data-lucide="target"></i> Rapsodo Pitching Dashboard
                 </h1>
-                <p class="text-slate-400 text-sm mt-1">投手多球種放球點一致性 (Release Point Silhouette) 與進壘共軌分析系統</p>
+                <p class="text-slate-400 text-sm mt-1">放球點高度穩定度 (Release Point) 與速差共軌 (Tunneling) 智慧分析系統</p>
             </div>
             
             <div class="flex flex-wrap items-center gap-2">
@@ -90,7 +90,6 @@
                 <div id="speedChart" class="w-full h-[320px]"></div>
             </div>
             
-            <!-- 重點改寫：直觀式投手姿勢與多球種出手點對比圖 -->
             <div class="card p-4 md:p-6 bg-slate-900/90 border border-sky-500/30">
                 <div class="mb-2">
                     <h2 class="text-lg font-semibold flex items-center gap-2 text-sky-300">
@@ -144,8 +143,8 @@
                     <div><label class="block text-slate-400 mb-1">體重 (kg)</label><input type="number" step="0.1" id="athleteModalWeight" placeholder="75" class="input-field w-full"></div>
                 </div>
                 <div class="flex gap-2 pt-2">
-                    <button type="button" onclick="closeAthleteModal()" class="w-1/2 py-2.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-white">取消</button>
-                    <button type="submit" class="w-1/2 py-2.5 bg-sky-600 hover:bg-sky-500 rounded-lg text-white">儲存資料</button>
+                    <button type="button" onclick="closeAthleteModal()" class="w-1/2 py-2.5 bg-slate-700 rounded-lg text-white">取消</button>
+                    <button type="submit" class="w-1/2 py-2.5 bg-sky-600 rounded-lg text-white">儲存資料</button>
                 </div>
             </form>
         </div>
@@ -171,8 +170,8 @@
         const db = getDatabase(app);
 
         window.db = db;
-        window.rapsodoRecordsRef = ref(db, 'rapsodo_pitch_records_v3');
-        window.rapsodoAthletesRef = ref(db, 'rapsodo_pitch_athletes_v3');
+        window.rapsodoRecordsRef = ref(db, 'rapsodo_pitch_records_v4');
+        window.rapsodoAthletesRef = ref(db, 'rapsodo_pitch_athletes_v4');
         window.set = set;
 
         const syncEl = document.getElementById('syncStatus');
@@ -185,7 +184,7 @@
             const cloudData = snapshot.val();
             if (cloudData !== null) {
                 window.records = Array.isArray(cloudData) ? cloudData : Object.values(cloudData);
-                localStorage.setItem('rapsodo_records_v3', JSON.stringify(window.records));
+                localStorage.setItem('rapsodo_records_v4', JSON.stringify(window.records));
             } else if (window.records && window.records.length > 0) {
                 set(window.rapsodoRecordsRef, window.records);
             }
@@ -197,7 +196,7 @@
             const cloudData = snapshot.val();
             if (cloudData !== null) {
                 window.athletes = cloudData;
-                localStorage.setItem('rapsodo_athletes_v3', JSON.stringify(window.athletes));
+                localStorage.setItem('rapsodo_athletes_v4', JSON.stringify(window.athletes));
             } else if (Object.keys(window.athletes || {}).length > 0) {
                 set(window.rapsodoAthletesRef, window.athletes);
             }
@@ -207,8 +206,8 @@
     </script>
 
     <script>
-        window.athletes = JSON.parse(localStorage.getItem('rapsodo_athletes_v3')) || {};
-        window.records = JSON.parse(localStorage.getItem('rapsodo_records_v3')) || [];
+        window.athletes = JSON.parse(localStorage.getItem('rapsodo_athletes_v4')) || {};
+        window.records = JSON.parse(localStorage.getItem('rapsodo_records_v4')) || [];
 
         document.addEventListener("DOMContentLoaded", () => {
             lucide.createIcons();
@@ -217,8 +216,8 @@
         });
 
         function saveDataLocally() {
-            localStorage.setItem('rapsodo_athletes_v3', JSON.stringify(window.athletes));
-            localStorage.setItem('rapsodo_records_v3', JSON.stringify(window.records));
+            localStorage.setItem('rapsodo_athletes_v4', JSON.stringify(window.athletes));
+            localStorage.setItem('rapsodo_records_v4', JSON.stringify(window.records));
 
             if (window.rapsodoRecordsRef && window.set) window.set(window.rapsodoRecordsRef, window.records);
             if (window.rapsodoAthletesRef && window.set) window.set(window.rapsodoAthletesRef, window.athletes);
@@ -239,7 +238,9 @@
                         const pitchType = row['Pitch Type'];
                         
                         if (!pitchId || isNaN(speed) || !pitchType) return;
-                        if (window.records.some(r => r.pitchId === pitchId)) return;
+                        
+                        // 若已有相同 PitchID，直接更新取代，確保新匯入不被擋下
+                        window.records = window.records.filter(r => r.pitchId !== pitchId);
                         
                         const rawDate = row['Pitch Created At'];
                         let dateStr = rawDate;
@@ -289,22 +290,19 @@
 
         function getPitchTypeName(pt) {
             const map = {
-                'FB': '直球', 'FA': '直球', 'FF': '四縫線', 'FT': '二縫線', 'SI': '伸卡球',
+                'FB': '直球', 'FA': '直球', 'FF': '四縫線', 'FT': '二縫線', '2S': '二縫線', 'SI': '伸卡球',
                 'CB': '曲球', 'CU': '曲球', 'SL': '滑球', 'CH': '變速球',
                 'SP': '指叉球', 'FS': '指叉球', 'FC': '卡特球'
             };
             return map[pt] || '球種';
         }
 
-        // 球種專屬色彩字典 (對齊 2025 專業設計)
         function getPitchColor(pt) {
             const colorMap = {
-                'FB': '#f43f5e', 'FF': '#f43f5e', 'FA': '#f43f5e', // 紅色 (四縫線)
-                'CB': '#38bdf8', 'CU': '#38bdf8',                  // 淺藍色 (曲球)
-                'SL': '#eab308',                                   // 黃色 (滑球)
-                'CH': '#4ade80',                                   // 綠色 (變速球)
-                'SP': '#c084fc', 'FS': '#c084fc',                  // 紫色 (指叉球)
-                'FC': '#fb923c', 'SI': '#f97316'                   // 橘色 (卡特/伸卡)
+                'FB': '#f43f5e', 'FF': '#f43f5e', 'FA': '#f43f5e', '2S': '#f97316',
+                'CB': '#38bdf8', 'CU': '#38bdf8', 'SL': '#eab308',
+                'CH': '#4ade80', 'SP': '#c084fc', 'FS': '#c084fc',
+                'FC': '#fb923c', 'SI': '#f97316'
             };
             return colorMap[pt] || '#94a3b8';
         }
@@ -456,15 +454,11 @@
                 margin: { t: 10, r: 20, l: 40, b: 40 }, xaxis: { gridcolor: '#334155' }, yaxis: { gridcolor: '#334155' }
             };
             
-            // 1. 速差圖
             const traceMax = { x: dates, y: stats.map(s => s.max), name: '極速', type: 'scatter', mode: 'lines+markers', line: { color: '#34d399', width: 2, dash: 'dot' } };
             const traceAvg = { x: dates, y: stats.map(s => s.avg), name: '均速', type: 'scatter', mode: 'lines+markers', line: { color: '#38bdf8', width: 3 } };
             Plotly.newPlot('speedChart', [traceMax, traceAvg], { ...commonLayout, yaxis: { title: 'MPH', gridcolor: '#334155' }, legend: { orientation: 'h', y: 1.2, x: 0 } }, { responsive: true, displayModeBar: false });
             
-            // 2. ★ 重點改寫：對齊 2025 視覺化——投手背面身體剪影 + 手臂 + 多球種彩色出手點重疊 ★
             const pitchTypes = [...new Set(allAthRecords.map(r => r.pitchType))];
-            
-            // 計算各球種的平均出手點座標 (RelSide, RelHeight)
             const releaseTraces = pitchTypes.map(pt => {
                 const ptData = allAthRecords.filter(r => r.pitchType === pt);
                 const avgSide = ptData.reduce((a,b)=>a+b.relSide, 0) / ptData.length;
@@ -483,14 +477,11 @@
                 };
             });
 
-            // 畫出投手身體剪影線與手臂延伸軸線 (以平均放球高約 5.6呎、側身約 0.8呎為基準)
             const pitcherBodyShapes = [
-                // 身體主幹/頭部 (簡單視覺剪影標註)
-                { type: 'circle', x0: -0.2, x1: 0.2, y0: 4.8, y1: 5.4, fillcolor: 'rgba(56, 189, 248, 0.15)', line: { color: '#38bdf8', width: 1.5 } }, // 頭部
-                { type: 'line', x0: 0, x1: 0, y0: 1.5, y1: 4.8, line: { color: '#38bdf8', width: 4, dash: 'solid' } }, // 身體中軸
-                { type: 'line', x0: -0.8, x1: 0.8, y0: 4.6, y1: 4.6, line: { color: '#38bdf8', width: 3 } }, // 兩肩連線
-                // 右臂抬起延伸線 (連向放球點區塊)
-                { type: 'line', x0: 0.6, x1: 1.1, y0: 4.6, y1: 5.7, line: { color: '#fbbf24', width: 8 } } // 手臂
+                { type: 'circle', x0: -0.2, x1: 0.2, y0: 4.8, y1: 5.4, fillcolor: 'rgba(56, 189, 248, 0.15)', line: { color: '#38bdf8', width: 1.5 } },
+                { type: 'line', x0: 0, x1: 0, y0: 1.5, y1: 4.8, line: { color: '#38bdf8', width: 4, dash: 'solid' } },
+                { type: 'line', x0: -0.8, x1: 0.8, y0: 4.6, y1: 4.6, line: { color: '#38bdf8', width: 3 } },
+                { type: 'line', x0: 0.6, x1: 1.1, y0: 4.6, y1: 5.7, line: { color: '#fbbf24', width: 8 } }
             ];
 
             Plotly.newPlot('releaseChart', releaseTraces, { 
@@ -501,11 +492,9 @@
                 legend: { orientation: 'h', y: -0.2, x: 0 }
             }, { responsive: true, displayModeBar: false });
             
-            // 3. 變化量圖 (Movement)
             const traceMove = { x: stats.map(s => s.avgHorz), y: stats.map(s => s.avgVert), text: dates, mode: 'text+markers+lines', marker: { size: 10, color: '#f59e0b' } };
             Plotly.newPlot('movementChart', [traceMove], { ...commonLayout, xaxis: { title: '水平變化 Horz Break (Inches)' }, yaxis: { title: '垂直變化 Induced Vert Break (Inches)' } }, { responsive: true, displayModeBar: false });
 
-            // 4. 多球種共軌進壘點比較 (Tunneling / Plate Location)
             const tunnelTraces = pitchTypes.map(pt => {
                 const ptData = allAthRecords.filter(r => r.pitchType === pt);
                 return {
